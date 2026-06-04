@@ -1,11 +1,34 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowRight, Sparkles, Shield, Heart } from "lucide-react";
+import { ArrowRight, Sparkles, Shield, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+const rotatingMessages = [
+  "Knowledge. Wisdom. Healing.",
+  "Learn from the Masters of Homeopathy.",
+  "Explore Materia Medica with AI.",
+  "Transform Symptoms into Understanding.",
+  "Your Homeopathic Knowledge Assistant.",
+];
+
 export function Hero() {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFading(true);
+      setTimeout(() => {
+        setMsgIndex((i) => (i + 1) % rotatingMessages.length);
+        setFading(false);
+      }, 400);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
       {/* Background */}
@@ -25,29 +48,43 @@ export function Hero() {
             <span className="text-xs text-muted-foreground">Now in early access</span>
           </div>
 
-          {/* Headline */}
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold font-poppins leading-tight mb-6">
-            <span className="text-gradient-brand">Patient-Centric.</span>
+          {/* Main greeting */}
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold font-poppins leading-tight mb-4">
+            <span className="text-gradient-brand">Hello, True Practitioner</span>
             <br />
-            <span>Root-Cause Focused.</span>
+            <span>of the Healing Art!</span>
           </h1>
 
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-            NeoHomeo unifies patients, doctors, and students on one intelligent platform.
-            Dr. Neo AI conducts classical case-taking, assists prescribers, and tutors the next generation.
+          {/* Subtitle */}
+          <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-4 leading-relaxed">
+            Welcome to <span className="font-semibold text-foreground">NeoHomeo AI</span> — your intelligent companion for Materia Medica, Repertory, Organon, Clinical Learning, and Homeopathic Research.
           </p>
+
+          {/* Rotating message */}
+          <div className="h-8 flex items-center justify-center mb-10">
+            <p
+              className="text-base md:text-lg font-medium transition-opacity duration-400"
+              style={{
+                opacity: fading ? 0 : 1,
+                color: "#4ECDC4",
+                transition: "opacity 0.4s ease",
+              }}
+            >
+              {rotatingMessages[msgIndex]}
+            </p>
+          </div>
 
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-14">
             <Button size="lg" asChild className="gradient-brand text-white border-0 h-12 px-8 text-base shadow-lg">
               <Link href="/register">
-                Start as a Patient
+                Start Learning
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild className="h-12 px-8 text-base">
-              <Link href="/register">
-                I&apos;m a Doctor
+              <Link href="/login">
+                Sign In
               </Link>
             </Button>
           </div>
@@ -59,7 +96,7 @@ export function Hero() {
               <span>HIPAA-compliant ready</span>
             </div>
             <div className="flex items-center gap-2">
-              <Heart className="h-4 w-4 text-red-500" />
+              <BookOpen className="h-4 w-4 text-blue-500" />
               <span>Classical homeopathy principles</span>
             </div>
             <div className="flex items-center gap-2">
@@ -70,29 +107,36 @@ export function Hero() {
         </div>
 
         {/* Preview cards */}
-        <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
+        <div className="mt-20 grid grid-cols-1 md:grid-cols-4 gap-4 max-w-5xl mx-auto">
           {[
-            {
-              role: "Patient",
-              color: "#4ECDC4",
-              bg: "from-teal-500/10 to-teal-500/5",
-              desc: "AI case-taking, remedy tracking, doctor discovery",
-              badge: "Calm & Simple",
-            },
-            {
-              role: "Doctor",
-              color: "#2A5C8D",
-              bg: "from-blue-700/10 to-blue-700/5",
-              desc: "Clinic OS, AI prescription assist, patient management",
-              badge: "Dense & Powerful",
-              featured: true,
-            },
             {
               role: "Student",
               color: "#8A2BE2",
               bg: "from-purple-600/10 to-purple-600/5",
               desc: "Materia Medica, flashcards, AI tutor, quiz engine",
               badge: "Learn & Master",
+            },
+            {
+              role: "Practitioner",
+              color: "#2A5C8D",
+              bg: "from-blue-700/10 to-blue-700/5",
+              desc: "AI prescription assist, case management, repertory",
+              badge: "Dense & Powerful",
+              featured: true,
+            },
+            {
+              role: "Educator",
+              color: "#4ECDC4",
+              bg: "from-teal-500/10 to-teal-500/5",
+              desc: "Teach with AI tools, manage student progress",
+              badge: "Inspire & Guide",
+            },
+            {
+              role: "Researcher",
+              color: "#F59E0B",
+              bg: "from-yellow-500/10 to-yellow-500/5",
+              desc: "Research library, journals, AI-assisted analysis",
+              badge: "Discover & Publish",
             },
           ].map((card) => (
             <div
@@ -107,7 +151,7 @@ export function Hero() {
               <div className="text-xs font-medium mb-1" style={{ color: card.color }}>
                 {card.badge}
               </div>
-              <h3 className="font-semibold font-poppins text-lg mb-2">{card.role}</h3>
+              <h3 className="font-semibold font-poppins text-base mb-2">{card.role}</h3>
               <p className="text-sm text-muted-foreground">{card.desc}</p>
               <Button size="sm" variant="ghost" className="mt-4 p-0 h-auto text-xs" asChild>
                 <Link href="/register">
@@ -116,6 +160,22 @@ export function Hero() {
               </Button>
             </div>
           ))}
+        </div>
+
+        {/* Masters section */}
+        <div className="mt-16 text-center">
+          <p className="text-sm text-muted-foreground mb-3">Built on the wisdom of the masters</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {["Hahnemann", "Kent", "Boericke", "Allen", "Clarke", "Hering", "Boger", "Nash"].map((name) => (
+              <span
+                key={name}
+                className="px-3 py-1 rounded-full text-xs border bg-card font-medium"
+                style={{ color: "#2A5C8D" }}
+              >
+                {name}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </section>
