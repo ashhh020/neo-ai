@@ -17,7 +17,6 @@ import {
   Layers,
   Library,
   Settings,
-  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store/authStore";
@@ -90,7 +89,7 @@ export function StudentSidebar() {
           <div key={group.label}>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-1">{group.label}</p>
             <div className="space-y-0.5">
-              {group.items.filter((i) => !i.isAction).map((item) => {
+              {group.items.map((item) => {
                 const isActive = pathname === item.href || (item.href !== "/student" && pathname.startsWith(item.href));
                 return (
                   <Link
