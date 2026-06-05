@@ -1,33 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
-
-const RUBRIC_DB = [
-  { id: "r1", chapter: "Mind", path: "MIND; FEAR; death, of", remedies: [{ name: "Aconite", abbrev: "Acon.", grade: 3 }, { name: "Arsenicum", abbrev: "Ars.", grade: 3 }, { name: "Calcarea", abbrev: "Calc.", grade: 2 }, { name: "Platina", abbrev: "Plat.", grade: 2 }, { name: "Phosphorus", abbrev: "Phos.", grade: 2 }, { name: "Pulsatilla", abbrev: "Puls.", grade: 1 }] },
-  { id: "r2", chapter: "Mind", path: "MIND; FEAR; alone, being", remedies: [{ name: "Arsenicum", abbrev: "Ars.", grade: 3 }, { name: "Bismuth", abbrev: "Bism.", grade: 3 }, { name: "Kali-carb", abbrev: "Kali-c.", grade: 2 }, { name: "Lycopodium", abbrev: "Lyc.", grade: 2 }, { name: "Phosphorus", abbrev: "Phos.", grade: 2 }] },
-  { id: "r3", chapter: "Mind", path: "MIND; GRIEF; ailments from", remedies: [{ name: "Ignatia", abbrev: "Ign.", grade: 3 }, { name: "Natrum Mur", abbrev: "Nat-m.", grade: 3 }, { name: "Phosphoric Acid", abbrev: "Ph-ac.", grade: 3 }, { name: "Causticum", abbrev: "Caust.", grade: 2 }, { name: "Staphysagria", abbrev: "Staph.", grade: 2 }] },
-  { id: "r4", chapter: "Mind", path: "MIND; ANXIETY; health, about", remedies: [{ name: "Arsenicum", abbrev: "Ars.", grade: 3 }, { name: "Calcarea", abbrev: "Calc.", grade: 3 }, { name: "Kali-ars", abbrev: "Kali-ar.", grade: 2 }, { name: "Nitric Acid", abbrev: "Nit-ac.", grade: 2 }, { name: "Phosphorus", abbrev: "Phos.", grade: 2 }] },
-  { id: "r5", chapter: "Stomach", path: "STOMACH; HUNGRY; 11 AM", remedies: [{ name: "Sulphur", abbrev: "Sul.", grade: 3 }, { name: "Zinc", abbrev: "Zinc.", grade: 2 }, { name: "Natrum Mur", abbrev: "Nat-m.", grade: 1 }] },
-  { id: "r6", chapter: "Generals", path: "GENERALS; SIDE; right", remedies: [{ name: "Lycopodium", abbrev: "Lyc.", grade: 3 }, { name: "Chelidonium", abbrev: "Chel.", grade: 3 }, { name: "Belladonna", abbrev: "Bell.", grade: 2 }, { name: "Sanguin.", abbrev: "Sang.", grade: 2 }] },
-  { id: "r7", chapter: "Generals", path: "GENERALS; HEAT; vital, lack of", remedies: [{ name: "Calcarea", abbrev: "Calc.", grade: 3 }, { name: "Silicea", abbrev: "Sil.", grade: 3 }, { name: "Psorinum", abbrev: "Psor.", grade: 2 }, { name: "Baryta Carb", abbrev: "Bar-c.", grade: 2 }] },
-  { id: "r8", chapter: "Mind", path: "MIND; CONSOLATION; agg.", remedies: [{ name: "Natrum Mur", abbrev: "Nat-m.", grade: 3 }, { name: "Ignatia", abbrev: "Ign.", grade: 2 }, { name: "Sepia", abbrev: "Sep.", grade: 2 }, { name: "Nitric Acid", abbrev: "Nit-ac.", grade: 1 }] },
-  { id: "r9", chapter: "Mind", path: "MIND; DELUSIONS; great person, being a", remedies: [{ name: "Sulphur", abbrev: "Sul.", grade: 3 }, { name: "Platinum", abbrev: "Plat.", grade: 3 }, { name: "Calcarea", abbrev: "Calc.", grade: 2 }, { name: "Lycopodium", abbrev: "Lyc.", grade: 1 }] },
-  { id: "r10", chapter: "Generals", path: "GENERALS; BURNING; externally", remedies: [{ name: "Arsenicum", abbrev: "Ars.", grade: 3 }, { name: "Sulphur", abbrev: "Sul.", grade: 3 }, { name: "Phosphorus", abbrev: "Phos.", grade: 2 }, { name: "Sanguinaria", abbrev: "Sang.", grade: 2 }] },
-  { id: "r11", chapter: "Mind", path: "MIND; FASTIDIOUS", remedies: [{ name: "Arsenicum", abbrev: "Ars.", grade: 3 }, { name: "Nux Vomica", abbrev: "Nux-v.", grade: 3 }, { name: "Calcarea", abbrev: "Calc.", grade: 2 }] },
-  { id: "r12", chapter: "Mind", path: "MIND; WEEPING; causeless", remedies: [{ name: "Pulsatilla", abbrev: "Puls.", grade: 3 }, { name: "Phosphorus", abbrev: "Phos.", grade: 2 }, { name: "Lycopodium", abbrev: "Lyc.", grade: 1 }] },
-  { id: "r13", chapter: "Generals", path: "GENERALS; AGGRAVATION; 4 PM", remedies: [{ name: "Lycopodium", abbrev: "Lyc.", grade: 3 }, { name: "Belladonna", abbrev: "Bell.", grade: 2 }, { name: "Pulsatilla", abbrev: "Puls.", grade: 2 }] },
-  { id: "r14", chapter: "Generals", path: "GENERALS; FOOD; onions, aversion to", remedies: [{ name: "Thuja", abbrev: "Thuj.", grade: 3 }, { name: "Lycopodium", abbrev: "Lyc.", grade: 2 }, { name: "Sabadilla", abbrev: "Sabad.", grade: 2 }] },
-  { id: "r15", chapter: "Mind", path: "MIND; IRRESOLUTION", remedies: [{ name: "Pulsatilla", abbrev: "Puls.", grade: 3 }, { name: "Lycopodium", abbrev: "Lyc.", grade: 2 }, { name: "Baryta Carb", abbrev: "Bar-c.", grade: 2 }] },
-];
-
-type Rubric = typeof RUBRIC_DB[0];
+import { useState, useMemo } from "react";
+import { Search, Plus, Trash2, ChevronDown, ChevronUp, Save, BookOpen, X } from "lucide-react";
+import { KENT_REPERTORY, CHAPTERS, searchRubrics, type Rubric } from "@/lib/repertory-data";
 
 interface CaseRubric {
   rubricId: string;
   path: string;
-  weight: number;
-  remedies: { name: string; abbrev: string; grade: number }[];
+  chapter: string;
+  weight: 1 | 2 | 3;
+  remedies: Rubric["remedies"];
 }
 
 interface RemedyScore {
@@ -43,38 +25,47 @@ const gradeStyle = (g: number): React.CSSProperties => ({
   fontWeight: g === 3 ? 700 : g === 2 ? 600 : 400,
 });
 
+const CHAPTER_COLORS: Record<string, string> = {
+  Mind: "#8A2BE2", Head: "#4e73df", Eye: "#4ECDC4", Nose: "#F59E0B",
+  Mouth: "#ef4444", Throat: "#10b981", Stomach: "#f97316", Abdomen: "#6366f1",
+  Rectum: "#84cc16", Bladder: "#06b6d4", Female: "#ec4899", Respiratory: "#0ea5e9",
+  Back: "#8b5cf6", Extremities: "#14b8a6", Sleep: "#a78bfa", Skin: "#fb923c",
+  Generals: "#64748b",
+};
+
 export default function RepertoryPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Rubric[]>([]);
-  const [caseRubrics, setCaseRubrics] = useState<CaseRubric[]>([]);
   const [searched, setSearched] = useState(false);
+  const [activeChapter, setActiveChapter] = useState("All");
+  const [caseRubrics, setCaseRubrics] = useState<CaseRubric[]>([]);
   const [showGrid, setShowGrid] = useState(false);
+  const [caseName, setCaseName] = useState("New Case");
+  const [mmRubric, setMmRubric] = useState<Rubric | null>(null);
 
   function doSearch() {
-    if (!query.trim()) return;
-    const q = query.toLowerCase().replace(/\*/g, "").trim();
-    const words = q.split(/\s+/);
-    const found = RUBRIC_DB.filter((r) =>
-      words.every((w) => r.path.toLowerCase().includes(w) || r.chapter.toLowerCase().includes(w))
-    );
+    const q = query.trim();
+    if (!q) return;
+    let found = searchRubrics(q);
+    if (activeChapter !== "All") found = found.filter(r => r.chapter === activeChapter);
     setResults(found);
     setSearched(true);
   }
 
-  function addRubric(rubric: Rubric) {
-    if (caseRubrics.find((r) => r.rubricId === rubric.id)) return;
-    setCaseRubrics((prev) => [...prev, { rubricId: rubric.id, path: rubric.path, weight: 1, remedies: rubric.remedies }]);
+  function addRubric(r: Rubric) {
+    if (caseRubrics.find(c => c.rubricId === r.id)) return;
+    setCaseRubrics(prev => [...prev, { rubricId: r.id, path: r.path, chapter: r.chapter, weight: 1, remedies: r.remedies }]);
   }
 
   function removeRubric(id: string) {
-    setCaseRubrics((prev) => prev.filter((r) => r.rubricId !== id));
+    setCaseRubrics(prev => prev.filter(r => r.rubricId !== id));
   }
 
-  function setWeight(id: string, w: number) {
-    setCaseRubrics((prev) => prev.map((r) => r.rubricId === id ? { ...r, weight: w } : r));
+  function setWeight(id: string, w: 1 | 2 | 3) {
+    setCaseRubrics(prev => prev.map(r => r.rubricId === id ? { ...r, weight: w } : r));
   }
 
-  const remedyScores: RemedyScore[] = (() => {
+  const remedyScores: RemedyScore[] = useMemo(() => {
     const map: Record<string, RemedyScore> = {};
     for (const cr of caseRubrics) {
       for (const rem of cr.remedies) {
@@ -84,74 +75,92 @@ export default function RepertoryPage() {
       }
     }
     return Object.values(map).sort((a, b) => b.score - a.score);
-  })();
+  }, [caseRubrics]);
 
-  const gridRemedies = remedyScores.slice(0, 12);
-  const quickSearches = ["fear death", "grief", "burning", "hungry 11", "consolation agg"];
+  const gridRemedies = remedyScores.slice(0, 14);
+  const quickSearches = ["fear death", "grief", "burning", "consolation agg", "hungry 11", "restless night", "weeping music", "jealousy", "thirstless", "constipation morning"];
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-5">
+    <div className="p-4 max-w-7xl mx-auto space-y-4">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-extrabold" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>
             Repertory Tool
           </h1>
-          <p className="text-sm font-mono-neo mt-0.5" style={{ color: "var(--text-dim)" }}>
-            Kent repertory · rubric search · repertorisation grid
+          <p className="text-sm font-mono-neo" style={{ color: "var(--text-dim)" }}>
+            Kent Repertory · {KENT_REPERTORY.length} rubrics · multi-word search · exclusion with -word
           </p>
         </div>
-        {caseRubrics.length > 0 && (
-          <button
-            onClick={() => setShowGrid(!showGrid)}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl text-white font-semibold text-sm gradient-mineral"
-          >
-            {showGrid ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            {showGrid ? "Hide" : "Show"} Grid
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {caseRubrics.length > 0 && (
+            <button
+              onClick={() => setShowGrid(!showGrid)}
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl text-white font-semibold text-sm gradient-mineral"
+            >
+              {showGrid ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {showGrid ? "Hide" : "Show"} Grid
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search bar */}
-      <div className="shard p-4 flex items-center gap-3">
+      <div className="shard p-3 flex items-center gap-3">
         <Search className="h-4 w-4 flex-shrink-0" style={{ color: "var(--text-dim)" }} />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && doSearch()}
-          placeholder='Search rubrics (e.g. "fear death" or "grief" or "burning")… * wildcard supported'
+          placeholder='e.g. "fear death" · "burning externally" · "grief" · -word to exclude'
           className="flex-1 bg-transparent outline-none text-sm font-medium"
           style={{ color: "var(--text-obsidian)" }}
         />
-        <button
-          onClick={doSearch}
-          className="px-4 py-2 rounded-xl text-white font-semibold text-sm gradient-mineral hover:opacity-90 flex-shrink-0"
-        >
+        {query && (
+          <button onClick={() => { setQuery(""); setResults([]); setSearched(false); }} style={{ color: "var(--text-dim)" }}>
+            <X className="h-4 w-4" />
+          </button>
+        )}
+        <button onClick={doSearch} className="px-4 py-2 rounded-xl text-white font-semibold text-sm gradient-mineral flex-shrink-0">
           Search
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* Chapter filter */}
+      <div className="flex gap-2 flex-wrap">
+        {["All", ...CHAPTERS].map(ch => (
+          <button
+            key={ch}
+            onClick={() => setActiveChapter(ch)}
+            className="px-3 py-1 rounded-xl text-xs font-semibold transition-all"
+            style={{
+              background: activeChapter === ch ? (CHAPTER_COLORS[ch] ?? "var(--accent-mineral)") : "rgba(255,255,255,0.5)",
+              color: activeChapter === ch ? "white" : "var(--text-dim)",
+              border: "1px solid var(--glass-border)",
+            }}
+          >
+            {ch}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Search results */}
         <div className="lg:col-span-2 space-y-3">
           {!searched && (
             <div className="shard p-8 text-center">
               <div className="text-4xl mb-3">🗂️</div>
-              <p className="font-bold" style={{ color: "var(--text-obsidian)" }}>Search the Kent Repertory</p>
+              <p className="font-bold" style={{ color: "var(--text-obsidian)" }}>Search Kent Repertory</p>
               <p className="text-sm mt-1" style={{ color: "var(--text-dim)" }}>
-                Enter a symptom, chapter, or rubric name above
+                {KENT_REPERTORY.length} rubrics across {CHAPTERS.length} chapters
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {quickSearches.map((s) => (
+                {quickSearches.map(s => (
                   <button
                     key={s}
-                    onClick={() => { setQuery(s); }}
+                    onClick={() => { setQuery(s); setTimeout(doSearch, 0); }}
                     className="text-xs px-3 py-1.5 rounded-xl font-medium transition-all hover:shadow-md"
-                    style={{
-                      background: "rgba(255,255,255,0.6)",
-                      border: "1px solid var(--glass-border)",
-                      color: "var(--text-dim)",
-                    }}
+                    style={{ background: "rgba(255,255,255,0.6)", border: "1px solid var(--glass-border)", color: "var(--text-dim)" }}
                   >
                     {s}
                   </button>
@@ -163,41 +172,68 @@ export default function RepertoryPage() {
           {searched && results.length === 0 && (
             <div className="shard p-8 text-center">
               <p className="font-bold" style={{ color: "var(--text-obsidian)" }}>No rubrics found</p>
-              <p className="text-sm mt-1" style={{ color: "var(--text-dim)" }}>Try broader search terms</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-dim)" }}>Try fewer words or select a different chapter</p>
             </div>
           )}
 
-          {results.map((r) => {
-            const added = !!caseRubrics.find((c) => c.rubricId === r.id);
+          {searched && results.length > 0 && (
+            <p className="text-xs font-mono-neo px-1" style={{ color: "var(--text-dim)" }}>
+              {results.length} rubric{results.length !== 1 ? "s" : ""} found
+            </p>
+          )}
+
+          {results.map(r => {
+            const added = !!caseRubrics.find(c => c.rubricId === r.id);
+            const chColor = CHAPTER_COLORS[r.chapter] ?? "var(--accent-mineral)";
             return (
               <div key={r.id} className="shard p-4 group">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0 pr-3">
-                    <span
-                      className="text-[10px] font-mono-neo px-2 py-0.5 rounded-full font-bold mr-2 inline-block mb-1"
-                      style={{ background: "rgba(138,43,226,0.1)", color: "#8A2BE2" }}
-                    >
-                      {r.chapter}
-                    </span>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-[10px] font-mono-neo px-2 py-0.5 rounded-full font-bold"
+                        style={{ background: `${chColor}15`, color: chColor }}>
+                        {r.chapter}
+                      </span>
+                      <span className="text-[10px] font-mono-neo px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(0,0,0,0.04)", color: "var(--text-dim)" }}>
+                        {r.section}
+                      </span>
+                    </div>
                     <p className="text-sm font-bold font-mono-neo leading-snug" style={{ color: "var(--text-obsidian)" }}>
                       {r.path}
                     </p>
+                    <p className="text-[10px] font-mono-neo mt-0.5" style={{ color: "var(--text-dim)" }}>
+                      {r.remedies.length} remedies
+                    </p>
                   </div>
-                  <button
-                    onClick={() => addRubric(r)}
-                    disabled={added}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold flex-shrink-0 transition-all disabled:opacity-50"
-                    style={{ background: "rgba(78,115,223,0.1)", color: "var(--accent-mineral)" }}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    {added ? "Added" : "Add"}
-                  </button>
+                  <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={() => addRubric(r)}
+                      disabled={added}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-50"
+                      style={{ background: "rgba(78,115,223,0.1)", color: "var(--accent-mineral)" }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {added ? "Added" : "Add to case"}
+                    </button>
+                    <button
+                      onClick={() => setMmRubric(mmRubric?.id === r.id ? null : r)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+                      style={{ background: "rgba(138,43,226,0.08)", color: "#8A2BE2" }}
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                      MM info
+                    </button>
+                  </div>
                 </div>
+
+                {/* Remedy grade pills */}
                 <div className="flex flex-wrap gap-1.5">
-                  {r.remedies.map((rem) => (
+                  {r.remedies.sort((a, b) => b.grade - a.grade).map(rem => (
                     <span
                       key={rem.name}
-                      className="text-[11px] px-2 py-0.5 rounded-lg font-mono-neo"
+                      title={rem.name}
+                      className="text-[11px] px-2 py-0.5 rounded-lg font-mono-neo cursor-help"
                       style={{
                         background: "rgba(255,255,255,0.6)",
                         border: "1px solid var(--glass-border)",
@@ -208,6 +244,20 @@ export default function RepertoryPage() {
                     </span>
                   ))}
                 </div>
+
+                {/* MM info panel */}
+                {mmRubric?.id === r.id && (
+                  <div className="mt-3 p-3 rounded-2xl" style={{ background: "rgba(138,43,226,0.05)", border: "1px solid rgba(138,43,226,0.15)" }}>
+                    <p className="text-xs font-semibold mb-2" style={{ color: "#8A2BE2" }}>Materia Medica — Top remedies for this rubric</p>
+                    <div className="space-y-1">
+                      {r.remedies.filter(rem => rem.grade === 3).map(rem => (
+                        <p key={rem.name} className="text-xs font-mono-neo" style={{ color: "var(--text-obsidian)" }}>
+                          <span className="font-bold">{rem.name}</span> — Grade {rem.grade} (major remedy for this rubric)
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -217,17 +267,18 @@ export default function RepertoryPage() {
         <div className="space-y-4">
           <div className="shard p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-sm" style={{ color: "var(--text-obsidian)" }}>
-                Case Rubrics
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm" style={{ color: "var(--text-obsidian)" }}>Case</h3>
                 {caseRubrics.length > 0 && (
-                  <span className="ml-2 text-xs font-mono-neo" style={{ color: "var(--text-dim)" }}>
-                    ({caseRubrics.length})
+                  <span className="text-[10px] font-mono-neo px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(78,115,223,0.1)", color: "var(--accent-mineral)" }}>
+                    {caseRubrics.length} rubrics
                   </span>
                 )}
-              </h3>
+              </div>
               {caseRubrics.length > 0 && (
                 <button onClick={() => setCaseRubrics([])} className="text-[10px] font-mono-neo text-red-400 hover:text-red-600">
-                  Clear all
+                  Clear
                 </button>
               )}
             </div>
@@ -238,45 +289,40 @@ export default function RepertoryPage() {
               </p>
             ) : (
               <div className="space-y-2">
-                {caseRubrics.map((cr) => (
-                  <div
-                    key={cr.rubricId}
-                    className="rounded-2xl p-3 group"
-                    style={{ background: "rgba(255,255,255,0.5)", border: "1px solid var(--glass-border)" }}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <p
-                        className="text-[11px] font-mono-neo font-semibold leading-tight flex-1 pr-2"
-                        style={{ color: "var(--text-obsidian)" }}
-                      >
-                        {cr.path}
-                      </p>
-                      <button
-                        onClick={() => removeRubric(cr.rubricId)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                      >
-                        <Trash2 className="h-3 w-3 text-red-400" />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono-neo" style={{ color: "var(--text-dim)" }}>Wt:</span>
-                      {[1, 2, 3].map((w) => (
-                        <button
-                          key={w}
-                          onClick={() => setWeight(cr.rubricId, w)}
-                          className="w-6 h-6 rounded-lg text-[10px] font-bold transition-all"
-                          style={{
-                            background: cr.weight === w ? "var(--accent-mineral)" : "rgba(255,255,255,0.6)",
-                            color: cr.weight === w ? "white" : "var(--text-dim)",
-                            border: "1px solid var(--glass-border)",
-                          }}
-                        >
-                          {w}
+                {caseRubrics.map(cr => {
+                  const chColor = CHAPTER_COLORS[cr.chapter] ?? "var(--accent-mineral)";
+                  return (
+                    <div key={cr.rubricId} className="rounded-2xl p-3 group"
+                      style={{ background: "rgba(255,255,255,0.5)", border: "1px solid var(--glass-border)" }}>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 pr-2">
+                          <span className="text-[9px] font-mono-neo font-bold" style={{ color: chColor }}>{cr.chapter} · </span>
+                          <span className="text-[11px] font-mono-neo font-semibold leading-tight" style={{ color: "var(--text-obsidian)" }}>
+                            {cr.path.split("; ").slice(-1)[0]}
+                          </span>
+                        </div>
+                        <button onClick={() => removeRubric(cr.rubricId)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                          <Trash2 className="h-3 w-3 text-red-400" />
                         </button>
-                      ))}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono-neo" style={{ color: "var(--text-dim)" }}>Wt:</span>
+                        {([1, 2, 3] as const).map(w => (
+                          <button key={w} onClick={() => setWeight(cr.rubricId, w)}
+                            className="w-6 h-6 rounded-lg text-[10px] font-bold transition-all"
+                            style={{
+                              background: cr.weight === w ? "var(--accent-mineral)" : "rgba(255,255,255,0.6)",
+                              color: cr.weight === w ? "white" : "var(--text-dim)",
+                              border: "1px solid var(--glass-border)",
+                            }}>
+                            {w}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -284,9 +330,11 @@ export default function RepertoryPage() {
           {/* Top remedies */}
           {remedyScores.length > 0 && (
             <div className="shard p-4">
-              <h3 className="font-bold text-sm mb-3" style={{ color: "var(--text-obsidian)" }}>Top Remedies</h3>
+              <h3 className="font-bold text-sm mb-3" style={{ color: "var(--text-obsidian)" }}>
+                Top Remedies
+              </h3>
               <div className="space-y-2.5">
-                {remedyScores.slice(0, 8).map((rem, i) => (
+                {remedyScores.slice(0, 10).map((rem, i) => (
                   <div key={rem.name} className="flex items-center gap-3">
                     <span className="text-[10px] font-mono-neo w-4 text-right flex-shrink-0" style={{ color: "var(--text-dim)" }}>
                       {i + 1}
@@ -299,17 +347,24 @@ export default function RepertoryPage() {
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.06)" }}>
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
+                        <div className="h-full rounded-full transition-all duration-500"
                           style={{
                             width: `${Math.min(100, (rem.score / (remedyScores[0]?.score || 1)) * 100)}%`,
-                            background: "var(--accent-mineral)",
-                          }}
-                        />
+                            background: i === 0 ? "#ef4444" : i === 1 ? "#f97316" : "var(--accent-mineral)",
+                          }} />
                       </div>
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-4 pt-3" style={{ borderTop: "1px solid var(--glass-border)" }}>
+                <p className="text-[10px] font-mono-neo mb-2" style={{ color: "var(--text-dim)" }}>Grade legend</p>
+                <div className="flex gap-3 text-[10px] font-mono-neo">
+                  <span style={{ color: "#ef4444", fontWeight: 700 }}>●●● Grade 3</span>
+                  <span style={{ color: "#4e73df", fontWeight: 600 }}>●● Grade 2</span>
+                  <span style={{ color: "#9ca3af" }}>● Grade 1</span>
+                </div>
               </div>
             </div>
           )}
@@ -319,47 +374,56 @@ export default function RepertoryPage() {
       {/* Repertorisation Grid */}
       {showGrid && caseRubrics.length > 0 && (
         <div className="shard p-5">
-          <h3 className="font-bold mb-4" style={{ color: "var(--text-obsidian)" }}>Repertorisation Grid</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold" style={{ color: "var(--text-obsidian)" }}>Repertorisation Grid</h3>
+            <div className="flex items-center gap-2">
+              <input
+                value={caseName}
+                onChange={e => setCaseName(e.target.value)}
+                className="text-sm font-semibold bg-transparent outline-none"
+                style={{ color: "var(--text-obsidian)", borderBottom: "1px solid var(--glass-border)" }}
+              />
+              <button className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold gradient-mineral text-white">
+                <Save className="h-3 w-3" /> Save Case
+              </button>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] font-mono-neo border-collapse">
               <thead>
                 <tr>
-                  <th
-                    className="text-left py-2 pr-4 min-w-52"
-                    style={{ color: "var(--text-dim)", borderBottom: "1px solid var(--glass-border)" }}
-                  >
+                  <th className="text-left py-2 pr-4 min-w-52 sticky left-0"
+                    style={{ color: "var(--text-dim)", borderBottom: "1px solid var(--glass-border)", background: "rgba(242,244,247,0.95)" }}>
                     Rubric
                   </th>
-                  <th
-                    className="text-center py-2 px-2"
-                    style={{ color: "var(--text-dim)", borderBottom: "1px solid var(--glass-border)" }}
-                  >
+                  <th className="text-center py-2 px-2"
+                    style={{ color: "var(--text-dim)", borderBottom: "1px solid var(--glass-border)" }}>
                     Wt
                   </th>
-                  {gridRemedies.map((r) => (
-                    <th
-                      key={r.name}
-                      className="text-center py-2 px-2 min-w-12"
+                  {gridRemedies.map(r => (
+                    <th key={r.name} className="text-center py-2 px-2 min-w-10"
                       style={{ color: "var(--text-dim)", borderBottom: "1px solid var(--glass-border)" }}
-                    >
-                      {r.abbrev}
+                      title={r.name}>
+                      {r.abbrev.replace(".", "")}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {caseRubrics.map((cr) => (
+                {caseRubrics.map(cr => (
                   <tr key={cr.rubricId} style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
-                    <td className="py-2 pr-4 font-semibold" style={{ color: "var(--text-obsidian)" }}>
+                    <td className="py-2 pr-4 font-semibold sticky left-0"
+                      style={{ color: "var(--text-obsidian)", background: "rgba(242,244,247,0.9)" }}>
                       {cr.path.split("; ").slice(-2).join("; ")}
                     </td>
                     <td className="text-center py-2 px-2 font-bold" style={{ color: "var(--accent-mineral)" }}>
                       {cr.weight}
                     </td>
-                    {gridRemedies.map((gr) => {
-                      const rem = cr.remedies.find((r) => r.name === gr.name);
+                    {gridRemedies.map(gr => {
+                      const rem = cr.remedies.find(r => r.name === gr.name);
                       return (
-                        <td key={gr.name} className="text-center py-2 px-2" style={rem ? gradeStyle(rem.grade) : { color: "#e5e7eb" }}>
+                        <td key={gr.name} className="text-center py-2 px-2"
+                          style={rem ? gradeStyle(rem.grade) : { color: "#e5e7eb" }}>
                           {rem ? rem.grade : "·"}
                         </td>
                       );
@@ -367,31 +431,26 @@ export default function RepertoryPage() {
                   </tr>
                 ))}
                 <tr style={{ borderTop: "2px solid var(--accent-mineral)" }}>
-                  <td className="py-2 pr-4 font-bold text-xs" style={{ color: "var(--text-obsidian)" }}>
+                  <td className="py-2 pr-4 font-bold text-xs sticky left-0"
+                    style={{ color: "var(--text-obsidian)", background: "rgba(242,244,247,0.9)" }}>
                     TOTAL SCORE
                   </td>
                   <td />
-                  {gridRemedies.map((gr) => (
-                    <td
-                      key={gr.name}
-                      className="text-center py-2 px-2 font-bold"
-                      style={{ color: "var(--accent-mineral)" }}
-                    >
+                  {gridRemedies.map((gr, i) => (
+                    <td key={gr.name} className="text-center py-2 px-2 font-bold"
+                      style={{ color: i === 0 ? "#ef4444" : i === 1 ? "#f97316" : "var(--accent-mineral)" }}>
                       {gr.score}
                     </td>
                   ))}
                 </tr>
                 <tr>
-                  <td className="py-1 pr-4 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                  <td className="py-1 pr-4 text-[10px] sticky left-0"
+                    style={{ color: "var(--text-dim)", background: "rgba(242,244,247,0.9)" }}>
                     Rubric coverage
                   </td>
                   <td />
-                  {gridRemedies.map((gr) => (
-                    <td
-                      key={gr.name}
-                      className="text-center py-1 px-2 text-[10px]"
-                      style={{ color: "var(--text-dim)" }}
-                    >
+                  {gridRemedies.map(gr => (
+                    <td key={gr.name} className="text-center py-1 px-2 text-[10px]" style={{ color: "var(--text-dim)" }}>
                       {gr.count}/{caseRubrics.length}
                     </td>
                   ))}
@@ -400,7 +459,7 @@ export default function RepertoryPage() {
             </table>
           </div>
           <p className="text-[10px] font-mono-neo mt-3" style={{ color: "var(--text-dim)" }}>
-            ●●● Grade 3 (bold red) · ●● Grade 2 (blue) · ● Grade 1 · Source: Kent Repertory
+            Source: Kent Repertory (public domain) · Score = sum of (grade × weight) · First 14 remedies shown
           </p>
         </div>
       )}

@@ -21,7 +21,7 @@ export default function MateriaMediaTutorPage() {
       </div>
 
       <div className="flex-1 min-h-0">
-        <DrNeoChat mode="materia-medica" placeholder="Ask about any remedy: 'Explain Sulphur mind symptoms'" className="h-full" />
+        <DrNeoChat mode="student" placeholder="Ask about any remedy: 'Explain Sulphur mind symptoms'" className="h-full" />
       </div>
     </div>
   );
