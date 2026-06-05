@@ -27,7 +27,6 @@ const navGroups = [
   {
     label: "Chat",
     items: [
-      { href: "/student/chat", label: "New Chat", icon: Plus, isAction: true },
       { href: "/student/chat/history", label: "Chat History", icon: History },
     ],
   },
