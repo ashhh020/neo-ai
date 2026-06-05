@@ -3,20 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  BookOpen,
-  RotateCcw,
-  HelpCircle,
-  GraduationCap,
-  LogOut,
-  MessageSquarePlus,
-  History,
-  Bookmark,
-  FlaskConical,
-  FileText,
-  Layers,
-  Library,
-  Settings,
+  LayoutDashboard, BookOpen, RotateCcw, HelpCircle, GraduationCap,
+  LogOut, MessageSquarePlus, History, Bookmark, FlaskConical,
+  FileText, Layers, Library, Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store/authStore";
@@ -26,6 +15,7 @@ const navGroups = [
   {
     label: "Chat",
     items: [
+      { href: "/student/chat", label: "New Chat", icon: MessageSquarePlus },
       { href: "/student/chat/history", label: "Chat History", icon: History },
     ],
   },
@@ -52,7 +42,7 @@ const navGroups = [
     label: "Tools",
     items: [
       { href: "/student/materia-medica-tutor", label: "MM Tutor", icon: BookOpen, isAI: true },
-      { href: "/student/repertory", label: "Repertory Tool", icon: Layers, isAI: true },
+      { href: "/student/repertory", label: "Repertory", icon: Layers, isAI: true },
       { href: "/student/research", label: "Research Library", icon: Library },
     ],
   },
@@ -64,43 +54,47 @@ export function StudentSidebar() {
   const router = useRouter();
 
   return (
-    <aside className="w-60 flex-shrink-0 h-full border-r bg-card flex flex-col">
-      <div className="h-14 border-b flex items-center px-5 gap-2.5">
-        <div className="w-7 h-7 rounded-lg gradient-ai flex items-center justify-center text-white font-bold text-sm font-poppins">N</div>
+    <aside
+      className="w-60 flex-shrink-0 h-full flex flex-col"
+      style={{
+        background: "var(--glass-base)",
+        backdropFilter: "blur(24px) saturate(160%)",
+        WebkitBackdropFilter: "blur(24px) saturate(160%)",
+        borderRight: "1px solid var(--glass-border)",
+      }}
+    >
+      {/* Logo */}
+      <div className="h-14 flex items-center px-5 gap-2.5" style={{ borderBottom: "1px solid var(--glass-border)" }}>
+        <div className="w-8 h-8 rounded-xl gradient-mineral flex items-center justify-center text-white font-bold text-sm">N</div>
         <div>
-          <div className="font-semibold font-poppins text-xs">NeoHomeo AI</div>
-          <div className="text-[10px] text-muted-foreground">Student Platform</div>
+          <div className="font-bold text-xs" style={{ color: "var(--text-obsidian)" }}>NeoHomeo AI</div>
+          <div className="font-mono-neo text-[9px] uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>Student Platform</div>
         </div>
       </div>
 
-      {/* New Chat button */}
-      <div className="px-3 pt-3">
-        <Link
-          href="/student/chat"
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm font-medium gradient-brand text-white hover:opacity-90 transition-opacity"
-        >
-          <MessageSquarePlus className="h-4 w-4 flex-shrink-0" />
-          New Chat
-        </Link>
-      </div>
-
-      <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+      <nav className="flex-1 p-3 space-y-5 overflow-y-auto scrollbar-thin">
         {navGroups.map((group) => (
           <div key={group.label}>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-1">{group.label}</p>
+            <p className="font-mono-neo text-[9px] font-bold uppercase tracking-[0.12em] px-2 mb-1.5" style={{ color: "var(--text-dim)" }}>
+              {group.label}
+            </p>
             <div className="space-y-0.5">
               {group.items.map((item) => {
-                const isActive = pathname === item.href || (item.href !== "/student" && pathname.startsWith(item.href));
+                const isActive = pathname === item.href || (item.href !== "/student" && item.href !== "/student/chat" && pathname.startsWith(item.href));
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "nav-item",
+                      "nav-item text-sm transition-all",
                       isActive
-                        ? "bg-primary/10 text-primary font-semibold"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "font-semibold"
+                        : "hover:bg-white/40"
                     )}
+                    style={isActive ? {
+                      background: "rgba(78,115,223,0.12)",
+                      color: "var(--accent-mineral)",
+                    } : { color: "var(--text-dim)" }}
                   >
                     <item.icon
                       className="h-4 w-4 flex-shrink-0"
@@ -109,10 +103,14 @@ export function StudentSidebar() {
                     />
                     {item.label}
                     {item.isAI && (
-                      <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                        style={{ backgroundColor: "#8A2BE220", color: "#8A2BE2" }}>
+                      <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-bold font-mono-neo"
+                        style={{ background: "#8A2BE215", color: "#8A2BE2" }}>
                         AI
                       </span>
+                    )}
+                    {isActive && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0"
+                        style={{ background: "var(--accent-mineral)", boxShadow: "0 0 8px var(--accent-mineral)" }} />
                     )}
                   </Link>
                 );
@@ -122,14 +120,17 @@ export function StudentSidebar() {
         ))}
       </nav>
 
-      <div className="p-3 border-t space-y-0.5">
-        <Link href="/student/settings" className={cn("nav-item", "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+      <div className="p-3 space-y-0.5" style={{ borderTop: "1px solid var(--glass-border)" }}>
+        <Link href="/student/settings"
+          className="nav-item text-sm hover:bg-white/40"
+          style={{ color: "var(--text-dim)" }}>
           <Settings className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
           Settings
         </Link>
         <button
           onClick={() => { logout(); router.push("/login"); }}
-          className="nav-item w-full text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20"
+          className="nav-item w-full text-sm hover:bg-red-50/60"
+          style={{ color: "var(--text-dim)" }}
         >
           <LogOut className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
           Sign Out

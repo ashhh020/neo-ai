@@ -2,7 +2,7 @@
 
 import { useAuthStore } from "@/lib/store/authStore";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { UserRole } from "@/types";
 
 export function useAuth(requiredRole?: UserRole) {
@@ -21,16 +21,23 @@ export function useAuth(requiredRole?: UserRole) {
 export function useRequireAuth(role?: UserRole) {
   const { user, isAuthenticated } = useAuthStore();
   const router = useRouter();
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    // Wait one tick for Zustand to rehydrate from localStorage
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
     if (!isAuthenticated) {
       router.push("/login");
       return;
     }
     if (role && user?.role !== role) {
-      router.push(`/${user?.role}`);
+      router.push(`/${user?.role || "login"}`);
     }
-  }, [isAuthenticated, user, role, router]);
+  }, [hydrated, isAuthenticated, user, role, router]);
 
   return { user, isAuthenticated };
 }
