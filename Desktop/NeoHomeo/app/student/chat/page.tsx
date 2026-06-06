@@ -1,310 +1,409 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, BookOpen, Layers, FlaskConical, Stethoscope, Library } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/lib/store/authStore";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, Plus, ChevronDown, BookOpen, Layers, FlaskConical, Stethoscope, Library, Trash2, Clock } from "lucide-react";
+import { MessageRenderer } from "@/components/shared/MessageRenderer";
+import { useSearchParams } from "next/navigation";
 
-type AIMode = {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-  color: string;
-  description: string;
-  placeholder: string;
-};
-
-const AI_MODES: AIMode[] = [
-  {
-    id: "general",
-    label: "General",
-    icon: Sparkles,
-    color: "#8A2BE2",
-    description: "Answers from all indexed sources",
-    placeholder: "Ask anything about Homeopathy...",
-  },
-  {
-    id: "materia-medica",
-    label: "Materia Medica",
-    icon: BookOpen,
-    color: "#2A5C8D",
-    description: "From Materia Medica books only",
-    placeholder: "Ask about any remedy — keynotes, modalities, relationships...",
-  },
-  {
-    id: "organon",
-    label: "Organon",
-    icon: FlaskConical,
-    color: "#4ECDC4",
-    description: "Organon & philosophy books",
-    placeholder: "Ask about aphorisms, philosophy, principles...",
-  },
-  {
-    id: "repertory",
-    label: "Repertory",
-    icon: Layers,
-    color: "#F59E0B",
-    description: "Rubrics and repertorization",
-    placeholder: "Find rubrics, compare remedies in repertory...",
-  },
-  {
-    id: "clinical",
-    label: "Clinical",
-    icon: Stethoscope,
-    color: "#EF4444",
-    description: "Clinical references & differentiation",
-    placeholder: "Ask about clinical cases, remedy differentiation...",
-  },
-  {
-    id: "research",
-    label: "Research",
-    icon: Library,
-    color: "#6B7280",
-    description: "Journals, articles, publications",
-    placeholder: "Search research papers, journals...",
-  },
-];
-
-const SUGGESTED_PROMPTS = [
-  "Explain Sulphur.",
-  "Compare Pulsatilla and Sepia.",
-  "Teach me Aphorism 153.",
-  "Find rubrics for fear of death.",
-  "Compare Nux Vomica and Lycopodium.",
-  "Explain Kent's philosophy.",
-  "What are the keynotes of Arsenicum Album?",
-  "Start Materia Medica study mode.",
-];
-
-type Message = {
+interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  timestamp: Date;
+}
+
+interface Thread {
+  id: string;
+  title: string;
   mode: string;
+  messages: Message[];
+  updatedAt: Date;
+}
+
+const MODES = [
+  { id: "general", label: "General", icon: Sparkles, color: "#6b7280" },
+  { id: "materia-medica", label: "Materia Medica", icon: BookOpen, color: "#4e73df" },
+  { id: "organon", label: "Organon", icon: Layers, color: "#4ECDC4" },
+  { id: "repertory", label: "Repertory", icon: Library, color: "#8A2BE2" },
+  { id: "clinical", label: "Clinical", icon: Stethoscope, color: "#F59E0B" },
+  { id: "research", label: "Research", icon: FlaskConical, color: "#ef4444" },
+];
+
+const MODE_COLORS: Record<string, string> = Object.fromEntries(MODES.map(m => [m.id, m.color]));
+
+const STARTER_PROMPTS: Record<string, string[]> = {
+  general: ["What is homeopathy?", "Explain the law of similars", "What is potentisation?"],
+  "materia-medica": ["Explain Sulphur keynotes", "Compare Pulsatilla vs Sepia", "Describe Arsenicum Album"],
+  organon: ["Explain Aphorism 153", "What is the vital force?", "Define miasm according to Hahnemann"],
+  repertory: ["How to use Kent repertory?", "What are PQRS symptoms?", "Explain rubric grading"],
+  clinical: ["Case taking methodology", "Explain totality of symptoms", "What is the similimum?"],
+  research: ["Evidence base for homeopathy", "Nano-pharmacology theory", "Meta-analysis studies"],
 };
 
+function formatTime(d: Date) {
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function Sparkles({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 3l1.88 5.76L20 10l-6.12 1.24L12 17l-1.88-5.76L4 10l6.12-1.24z"/>
+    </svg>
+  );
+}
+
 export default function ChatPage() {
-  const { user } = useAuthStore();
-  const [selectedMode, setSelectedMode] = useState<AIMode>(AI_MODES[0]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [activeThread, setActiveThread] = useState<Thread | null>(null);
+  const [mode, setMode] = useState("general");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [threadsLoading, setThreadsLoading] = useState(true);
+  const [showModeMenu, setShowModeMenu] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  const isEmpty = messages.length === 0;
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [activeThread?.messages]);
 
-  async function sendMessage(text: string) {
-    if (!text.trim() || loading) return;
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content: text, mode: selectedMode.id };
-    const allMessages = [...messages, userMsg];
-    setMessages(allMessages);
+  // Load threads from DB on mount
+  useEffect(() => {
+    async function loadThreads() {
+      try {
+        const res = await fetch("/api/chat");
+        if (!res.ok) return;
+        const data = await res.json();
+        const loaded: Thread[] = (data.threads ?? []).map((t: { id: string; title: string; mode: string; updated_at: string }) => ({
+          id: t.id,
+          title: t.title,
+          mode: t.mode,
+          messages: [],
+          updatedAt: new Date(t.updated_at),
+        }));
+        setThreads(loaded);
+
+        // If ?thread=X in URL, load that thread
+        const threadId = searchParams.get("thread");
+        if (threadId) {
+          const found = loaded.find(t => t.id === threadId);
+          if (found) loadThread(found);
+        }
+      } finally {
+        setThreadsLoading(false);
+      }
+    }
+    loadThreads();
+  }, []);
+
+  async function loadThread(t: Thread) {
+    if (t.messages.length > 0) { setActiveThread(t); return; }
+    try {
+      const res = await fetch(`/api/chat?threadId=${t.id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const msgs: Message[] = (data.messages ?? []).map((m: { id: string; role: string; content: string; created_at: string }) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        timestamp: new Date(m.created_at),
+      }));
+      const full = { ...t, mode: data.thread?.mode ?? t.mode, messages: msgs };
+      setActiveThread(full);
+      setThreads(prev => prev.map(x => x.id === t.id ? full : x));
+    } catch { setActiveThread(t); }
+  }
+
+  async function newThread() {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "thread", title: "New Chat", mode }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const t: Thread = {
+      id: data.thread.id,
+      title: data.thread.title,
+      mode,
+      messages: [],
+      updatedAt: new Date(),
+    };
+    setThreads(prev => [t, ...prev]);
+    setActiveThread(t);
+  }
+
+  const sendMessage = useCallback(async (text?: string) => {
+    const content = (text ?? input).trim();
+    if (!content || loading) return;
     setInput("");
     setLoading(true);
 
-    const assistantId = (Date.now() + 1).toString();
-    setMessages((m) => [...m, { id: assistantId, role: "assistant", content: "", mode: selectedMode.id }]);
+    let thread = activeThread;
+    let isNew = false;
+
+    // Create thread in DB if none active
+    if (!thread) {
+      isNew = true;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "thread", title: content.slice(0, 50), mode }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        thread = { id: data.thread.id, title: content.slice(0, 50), mode, messages: [], updatedAt: new Date() };
+        setThreads(prev => [thread!, ...prev]);
+        setActiveThread(thread);
+      } else {
+        // Fallback: local thread
+        thread = { id: crypto.randomUUID(), title: content.slice(0, 50), mode, messages: [], updatedAt: new Date() };
+      }
+    }
+
+    // If first message in existing thread, update title
+    if (!isNew && thread.messages.length === 0) {
+      const shortTitle = content.slice(0, 50);
+      setActiveThread(prev => prev ? { ...prev, title: shortTitle } : prev);
+      setThreads(prev => prev.map(t => t.id === thread!.id ? { ...t, title: shortTitle } : t));
+    }
+
+    // Add user message optimistically
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content, timestamp: new Date() };
+    const withUser = { ...thread, messages: [...thread.messages, userMsg], updatedAt: new Date() };
+    setActiveThread(withUser);
+    setThreads(prev => prev.map(t => t.id === withUser.id ? { ...t, updatedAt: new Date() } : t));
+
+    // Save user message to DB
+    fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "message", threadId: thread.id, role: "user", content }),
+    }).catch(() => {});
 
     try {
       const res = await fetch("/api/dr-neo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: allMessages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-          mode: selectedMode.id,
-        }),
+        body: JSON.stringify({ message: content, mode, history: withUser.messages.slice(-10) }),
       });
+      const data = await res.json();
+      const reply = data.reply ?? "I could not generate a response.";
+      const assistantMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: reply, timestamp: new Date() };
+      const final = { ...withUser, messages: [...withUser.messages, assistantMsg], updatedAt: new Date() };
+      setActiveThread(final);
+      setThreads(prev => prev.map(t => t.id === final.id ? { ...t, updatedAt: new Date() } : t));
 
-      if (!res.ok) throw new Error("API error");
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n");
-          for (const line of lines) {
-            if (line.startsWith("data: ") && line !== "data: [DONE]") {
-              try {
-                const parsed = JSON.parse(line.slice(6));
-                accumulated += parsed.text || "";
-                setMessages((m) => m.map((msg) => msg.id === assistantId ? { ...msg, content: accumulated } : msg));
-              } catch { /* ignore parse errors */ }
-            }
-          }
-        }
-      }
+      // Save assistant message to DB
+      fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "message", threadId: thread!.id, role: "assistant", content: reply }),
+      }).catch(() => {});
     } catch {
-      setMessages((m) => m.map((msg) =>
-        msg.id === assistantId
-          ? { ...msg, content: "I am here to assist with homeopathic knowledge. Please check your API configuration and try again." }
-          : msg
-      ));
+      const errMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: "Connection error. Please check your API configuration.", timestamp: new Date() };
+      const final = { ...withUser, messages: [...withUser.messages, errMsg], updatedAt: new Date() };
+      setActiveThread(final);
+      setThreads(prev => prev.map(t => t.id === final.id ? { ...t, updatedAt: new Date() } : t));
     } finally {
       setLoading(false);
+      inputRef.current?.focus();
     }
+  }, [input, loading, activeThread, mode]);
+
+  function handleKey(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
+  async function deleteThread(id: string) {
+    await fetch(`/api/chat?threadId=${id}`, { method: "DELETE" });
+    setThreads(prev => prev.filter(t => t.id !== id));
+    if (activeThread?.id === id) setActiveThread(null);
   }
+
+  const currentMode = MODES.find(m => m.id === mode) ?? MODES[0];
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Mode selector bar */}
-      <div className="border-b bg-card px-4 py-2 flex gap-2 overflow-x-auto scrollbar-thin">
-        {AI_MODES.map((mode) => (
-          <button
-            key={mode.id}
-            onClick={() => setSelectedMode(mode)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all border",
-              selectedMode.id === mode.id
-                ? "text-white border-transparent"
-                : "bg-transparent hover:bg-muted border-transparent text-muted-foreground"
-            )}
-            style={selectedMode.id === mode.id ? { backgroundColor: mode.color, borderColor: mode.color } : {}}
-          >
-            <mode.icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-            {mode.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Messages or empty state */}
-      <div className="flex-1 overflow-y-auto">
-        {isEmpty ? (
-          <div className="flex flex-col items-center justify-center h-full px-4 py-12 text-center">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-white font-bold text-xl font-poppins"
-              style={{ background: `linear-gradient(135deg, #2A5C8D, #8A2BE2)` }}
-            >
-              N
-            </div>
-            <h2 className="text-xl font-bold font-poppins mb-2">
-              Hello, {user?.name?.split(" ")[0] || "Practitioner"}!
-            </h2>
-            <p className="text-muted-foreground text-sm max-w-md mb-1">
-              Welcome to NeoHomeo AI — your intelligent companion for Materia Medica, Repertory, Organon, Clinical Learning, and Homeopathic Research.
-            </p>
-            <p className="text-xs text-muted-foreground mb-8">
-              Mode: <span className="font-semibold" style={{ color: selectedMode.color }}>{selectedMode.label}</span> — {selectedMode.description}
-            </p>
-
-            {/* Suggested prompts */}
-            <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
-              {SUGGESTED_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  onClick={() => sendMessage(prompt)}
-                  className="text-left px-4 py-3 rounded-xl border bg-card hover:bg-muted text-sm transition-colors"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
+    <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+      {/* Thread sidebar */}
+      {sidebarOpen && (
+        <div className="w-56 flex-shrink-0 flex flex-col border-r overflow-hidden" style={{ background: "rgba(255,255,255,0.3)", backdropFilter: "blur(20px)", borderColor: "var(--glass-border)" }}>
+          <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--glass-border)" }}>
+            <button onClick={newThread}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-sm gradient-mineral text-white">
+              <Plus className="h-4 w-4" /> New Chat
+            </button>
           </div>
-        ) : (
-          <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-            {messages.map((msg) => {
-              const mode = AI_MODES.find((m) => m.id === msg.mode);
-              return (
-                <div key={msg.id} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {threadsLoading && (
+              <p className="text-[11px] text-center py-6 px-2" style={{ color: "var(--text-dim)" }}>Loading…</p>
+            )}
+            {!threadsLoading && threads.length === 0 && (
+              <p className="text-[11px] text-center py-6 px-2" style={{ color: "var(--text-dim)" }}>
+                Start a conversation to see history
+              </p>
+            )}
+            {threads.map(t => (
+              <button key={t.id} onClick={() => loadThread(t)}
+                className="w-full text-left px-3 py-2 rounded-xl group transition-all hover:bg-white/40 relative"
+                style={{ background: activeThread?.id === t.id ? "rgba(78,115,223,0.1)" : "transparent", border: activeThread?.id === t.id ? "1px solid rgba(78,115,223,0.2)" : "1px solid transparent" }}>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: MODE_COLORS[t.mode] ?? "#6b7280" }} />
+                  <p className="text-[11px] font-semibold truncate flex-1" style={{ color: "var(--text-obsidian)" }}>{t.title}</p>
+                  <button onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <Trash2 className="h-3 w-3 text-red-400" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-2.5 w-2.5" style={{ color: "var(--text-dim)" }} />
+                  <p className="text-[9px] font-mono-neo" style={{ color: "var(--text-dim)" }}>{formatTime(t.updatedAt)}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--glass-border)", background: "rgba(255,255,255,0.2)", backdropFilter: "blur(20px)" }}>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-lg hover:bg-white/40">
+              <div className="w-4 h-3 flex flex-col justify-between">
+                {[0,1,2].map(i => <div key={i} className="h-0.5 rounded-full" style={{ background: "var(--text-dim)" }} />)}
+              </div>
+            </button>
+            {activeThread && (
+              <p className="font-semibold text-sm truncate max-w-48" style={{ color: "var(--text-obsidian)" }}>
+                {activeThread.title}
+              </p>
+            )}
+          </div>
+
+          {/* Mode selector */}
+          <div className="relative">
+            <button onClick={() => setShowModeMenu(!showModeMenu)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style={{ background: `${currentMode.color}15`, color: currentMode.color, border: `1px solid ${currentMode.color}30` }}>
+              <currentMode.icon className="h-3.5 w-3.5" />
+              {currentMode.label}
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {showModeMenu && (
+              <div className="absolute right-0 top-full mt-1 w-44 rounded-2xl shadow-xl z-50 overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px)", border: "1px solid var(--glass-border)" }}>
+                {MODES.map(m => (
+                  <button key={m.id} onClick={() => { setMode(m.id); setShowModeMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-xs font-semibold hover:bg-white/60 transition-all"
+                    style={{ color: m.id === mode ? m.color : "var(--text-obsidian)" }}>
+                    <m.icon className="h-3.5 w-3.5" style={{ color: m.color }} />
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto">
+          {!activeThread || activeThread.messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full px-4 text-center">
+              <div className="w-16 h-16 rounded-3xl gradient-mineral flex items-center justify-center mb-4">
+                <currentMode.icon className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-xl font-extrabold mb-2" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>
+                Dr. Neo AI
+              </h2>
+              <p className="text-sm mb-6 max-w-sm" style={{ color: "var(--text-dim)" }}>
+                Mode: <span className="font-semibold" style={{ color: currentMode.color }}>{currentMode.label}</span> · Ask anything about homeopathy
+              </p>
+              <div className="flex flex-col gap-2 w-full max-w-xs">
+                {STARTER_PROMPTS[mode]?.map(p => (
+                  <button key={p} onClick={() => sendMessage(p)}
+                    className="px-4 py-3 rounded-2xl text-sm font-medium text-left transition-all hover:shadow-md"
+                    style={{ background: "rgba(255,255,255,0.6)", border: "1px solid var(--glass-border)", color: "var(--text-obsidian)" }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+              {activeThread.messages.map(msg => (
+                <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   {msg.role === "assistant" && (
-                    <div
-                      className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold font-poppins flex-shrink-0 mt-0.5"
-                      style={{ background: `linear-gradient(135deg, #2A5C8D, #8A2BE2)` }}
-                    >
-                      N
-                    </div>
+                    <div className="w-8 h-8 rounded-xl gradient-mineral flex items-center justify-center text-white font-black text-xs flex-shrink-0 mr-3 mt-0.5">N</div>
                   )}
-                  <div className={cn("max-w-[80%] space-y-1")}>
-                    {msg.role === "assistant" && mode && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0" style={{ color: mode.color, borderColor: mode.color + "40" }}>
-                        {mode.label}
-                      </Badge>
-                    )}
+                  <div className={`max-w-[80%] ${msg.role === "user" ? "order-1" : "order-2"}`}>
                     <div
-                      className={cn(
-                        "px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap",
-                        msg.role === "user"
-                          ? "bg-primary text-primary-foreground rounded-br-sm"
-                          : "bg-card border rounded-bl-sm"
-                      )}
+                      className="px-4 py-3 rounded-2xl"
+                      style={msg.role === "user"
+                        ? { background: "var(--accent-mineral)", color: "white", borderRadius: "18px 18px 4px 18px" }
+                        : { background: "rgba(255,255,255,0.7)", border: "1px solid var(--glass-border)", borderRadius: "18px 18px 18px 4px", backdropFilter: "blur(12px)" }
+                      }
                     >
-                      {msg.content}
+                      {msg.role === "user"
+                        ? <p className="text-sm leading-relaxed">{msg.content}</p>
+                        : <MessageRenderer content={msg.content} />
+                      }
                     </div>
+                    <p className="text-[10px] font-mono-neo mt-1 px-1"
+                      style={{ color: "var(--text-dim)", textAlign: msg.role === "user" ? "right" : "left" }}>
+                      {formatTime(msg.timestamp)}
+                    </p>
                   </div>
                 </div>
-              );
-            })}
+              ))}
 
-            {loading && (
-              <div className="flex gap-3 justify-start">
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold font-poppins flex-shrink-0"
-                  style={{ background: `linear-gradient(135deg, #2A5C8D, #8A2BE2)` }}
-                >
-                  N
-                </div>
-                <div className="px-4 py-3 rounded-2xl bg-card border rounded-bl-sm">
-                  <div className="flex gap-1 items-center h-5">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce"
-                        style={{ animationDelay: `${i * 0.15}s` }}
-                      />
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="w-8 h-8 rounded-xl gradient-mineral flex items-center justify-center text-white font-black text-xs flex-shrink-0 mr-3">N</div>
+                  <div className="px-4 py-3 rounded-2xl flex items-center gap-1"
+                    style={{ background: "rgba(255,255,255,0.7)", border: "1px solid var(--glass-border)", backdropFilter: "blur(12px)" }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="w-2 h-2 rounded-full animate-bounce"
+                        style={{ background: "var(--accent-mineral)", animationDelay: `${i * 0.15}s` }} />
                     ))}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
 
-            <div ref={bottomRef} />
+        {/* Input composer */}
+        <div className="flex-shrink-0 px-4 py-3" style={{ borderTop: "1px solid var(--glass-border)", background: "rgba(255,255,255,0.2)", backdropFilter: "blur(20px)" }}>
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-end gap-3 rounded-3xl px-4 py-3"
+              style={{ background: "rgba(255,255,255,0.7)", border: "1px solid var(--glass-border)", backdropFilter: "blur(20px)" }}>
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px"; }}
+                onKeyDown={handleKey}
+                placeholder={`Ask Dr. Neo about ${currentMode.label.toLowerCase()}…`}
+                rows={1}
+                className="flex-1 bg-transparent outline-none resize-none text-sm font-medium leading-relaxed"
+                style={{ color: "var(--text-obsidian)", maxHeight: 160, minHeight: 24 }}
+              />
+              <button
+                onClick={() => sendMessage()}
+                disabled={!input.trim() || loading}
+                className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-40 gradient-mineral hover:opacity-90"
+              >
+                <Send className="h-4 w-4 text-white" />
+              </button>
+            </div>
+            <p className="text-[10px] font-mono-neo text-center mt-2" style={{ color: "var(--text-dim)" }}>
+              Dr. Neo AI · {currentMode.label} mode · Enter to send · Shift+Enter for new line
+            </p>
           </div>
-        )}
-      </div>
-
-      {/* Input area */}
-      <div className="border-t bg-card p-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="relative flex items-end gap-2 border rounded-2xl bg-background px-4 py-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={selectedMode.placeholder}
-              rows={1}
-              className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground min-h-[36px] max-h-[200px] py-2"
-              style={{ overflowY: input.split("\n").length > 3 ? "auto" : "hidden" }}
-            />
-            <Button
-              size="sm"
-              className="h-9 w-9 p-0 rounded-xl flex-shrink-0 gradient-brand text-white border-0"
-              onClick={() => sendMessage(input)}
-              disabled={!input.trim() || loading}
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground text-center mt-2">
-            NeoHomeo AI may make mistakes. Always verify clinical decisions with qualified sources.
-          </p>
         </div>
       </div>
     </div>

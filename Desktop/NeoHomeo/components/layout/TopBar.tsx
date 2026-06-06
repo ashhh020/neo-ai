@@ -31,7 +31,8 @@ export function TopBar({ title, showSearch = true }: TopBarProps) {
   }
 
   return (
-    <header className="h-14 border-b bg-background/95 backdrop-blur sticky top-0 z-40 flex items-center px-4 gap-4">
+    <header className="h-14 sticky top-0 z-40 flex items-center px-4 gap-4"
+      style={{ background: "var(--glass-base)", backdropFilter: "blur(20px) saturate(150%)", WebkitBackdropFilter: "blur(20px) saturate(150%)", borderBottom: "1px solid var(--glass-border)" }}>
       {title && (
         <h1 className="text-base font-semibold font-poppins hidden sm:block">{title}</h1>
       )}

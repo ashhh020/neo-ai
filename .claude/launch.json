@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "NeoHomeo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "Desktop/NeoHomeo",
+      "port": 3456,
+      "autoPort": false
+    }
+  ]
+}

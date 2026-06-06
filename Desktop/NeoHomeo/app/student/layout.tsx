@@ -13,7 +13,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       <StudentSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto bg-background scrollbar-thin">
+        <main className="flex-1 overflow-y-auto scrollbar-thin" style={{ background: "transparent" }}>
           {children}
         </main>
       </div>

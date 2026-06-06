@@ -3,34 +3,28 @@
 import { useAuthStore } from "@/lib/store/authStore";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { UserRole } from "@/types";
 
-export function useAuth(requiredRole?: UserRole) {
-  const { user, isAuthenticated, login, logout } = useAuthStore();
+export function useRequireAuth(_role?: string) {
+  const { user, isAuthenticated, loading, init } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
-    if (requiredRole && (!isAuthenticated || user?.role !== requiredRole)) {
-      router.push("/login");
-    }
-  }, [isAuthenticated, user, requiredRole, router]);
-
-  return { user, isAuthenticated, login, logout };
-}
-
-export function useRequireAuth(role?: UserRole) {
-  const { user, isAuthenticated } = useAuthStore();
-  const router = useRouter();
+    init();
+  }, []);
 
   useEffect(() => {
+    if (loading) return;
     if (!isAuthenticated) {
       router.push("/login");
-      return;
     }
-    if (role && user?.role !== role) {
-      router.push(`/${user?.role}`);
-    }
-  }, [isAuthenticated, user, role, router]);
+    // All roles redirect to /student (other dashboards hidden)
+  }, [loading, isAuthenticated]);
 
-  return { user, isAuthenticated };
+  return { user, isAuthenticated, loading };
+}
+
+export function useAuth() {
+  const store = useAuthStore();
+  useEffect(() => { store.init(); }, []);
+  return store;
 }
