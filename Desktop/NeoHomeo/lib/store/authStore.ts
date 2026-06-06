@@ -1,76 +1,83 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { User, UserRole } from "@/types";
+import { createClient } from "@/lib/supabase/client";
 
-interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  login: (email: string, password: string, role: UserRole) => void;
-  logout: () => void;
-  updateUser: (updates: Partial<User>) => void;
+interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  avatar?: string;
 }
 
-const MOCK_USERS: Record<UserRole, User> = {
-  patient: {
-    id: "u-p-001",
-    email: "priya@example.com",
-    name: "Priya Sharma",
-    role: "patient",
-    avatar: "https://api.dicebear.com/7.x/personas/svg?seed=priya",
-    createdAt: "2025-11-01",
-  },
-  doctor: {
-    id: "u-dr-001",
-    email: "rajan@example.com",
-    name: "Dr. Rajan Krishnamurthy",
-    role: "doctor",
-    avatar: "https://api.dicebear.com/7.x/personas/svg?seed=rajan",
-    createdAt: "2024-03-15",
-  },
-  student: {
-    id: "u-st-001",
-    email: "student@example.com",
-    name: "Ashraf Shaikh",
-    role: "student",
-    avatar: "https://api.dicebear.com/7.x/personas/svg?seed=ashraf",
-    createdAt: "2025-06-01",
-  },
-  admin: {
-    id: "u-admin-001",
-    email: "admin@neohomeo.com",
-    name: "Platform Admin",
-    role: "admin",
-    createdAt: "2024-01-01",
-  },
-  pharmacy: {
-    id: "u-ph-001",
-    email: "pharmacy@example.com",
-    name: "MediHom Pharmacy",
-    role: "pharmacy",
-    createdAt: "2024-06-01",
-  },
-};
+interface AuthState {
+  user: AuthUser | null;
+  isAuthenticated: boolean;
+  loading: boolean;
+  init: () => Promise<void>;
+  logout: () => Promise<void>;
+  updateUser: (updates: Partial<AuthUser>) => void;
+}
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      isAuthenticated: false,
-      login: (email: string, _password: string, role: UserRole) => {
-        const user = { ...MOCK_USERS[role], email };
-        set({ user, isAuthenticated: true });
-      },
-      logout: () => {
-        set({ user: null, isAuthenticated: false });
-      },
-      updateUser: (updates: Partial<User>) => {
-        set((state) => ({
-          user: state.user ? { ...state.user, ...updates } : null,
-        }));
-      },
-    }),
-    {
-      name: "neohomeo-auth",
+export const useAuthStore = create<AuthState>()((set, get) => ({
+  user: null,
+  isAuthenticated: false,
+  loading: true,
+
+  init: async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      set({ user: null, isAuthenticated: false, loading: false });
+      return;
     }
-  )
-);
+
+    // Try to load profile from DB
+    const { data: profile } = await supabase
+      .from("profiles" as never)
+      .select("name, role, avatar_url")
+      .eq("id", user.id)
+      .single() as { data: { name: string; role: string; avatar_url: string | null } | null };
+
+    const name =
+      profile?.name ||
+      user.user_metadata?.name ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "User";
+
+    set({
+      user: {
+        id: user.id,
+        email: user.email ?? "",
+        name,
+        role: profile?.role ?? user.user_metadata?.role ?? "student",
+        avatar: profile?.avatar_url ?? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
+      },
+      isAuthenticated: true,
+      loading: false,
+    });
+
+    // Listen for auth changes
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        set({ user: null, isAuthenticated: false, loading: false });
+      } else if (event === "SIGNED_IN" && session.user) {
+        // Re-init on sign in
+        get().init();
+      }
+    });
+  },
+
+  logout: async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    set({ user: null, isAuthenticated: false });
+  },
+
+  updateUser: (updates) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...updates } : null,
+    }));
+  },
+}));

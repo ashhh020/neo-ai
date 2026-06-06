@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Plus, ChevronDown, BookOpen, Layers, FlaskConical, Stethoscope, Library, Trash2, Clock } from "lucide-react";
 import { MessageRenderer } from "@/components/shared/MessageRenderer";
+import { useSearchParams } from "next/navigation";
 
 interface Message {
   id: string;
@@ -57,19 +58,75 @@ export default function ChatPage() {
   const [mode, setMode] = useState("general");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [threadsLoading, setThreadsLoading] = useState(true);
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeThread?.messages]);
 
-  function newThread() {
+  // Load threads from DB on mount
+  useEffect(() => {
+    async function loadThreads() {
+      try {
+        const res = await fetch("/api/chat");
+        if (!res.ok) return;
+        const data = await res.json();
+        const loaded: Thread[] = (data.threads ?? []).map((t: { id: string; title: string; mode: string; updated_at: string }) => ({
+          id: t.id,
+          title: t.title,
+          mode: t.mode,
+          messages: [],
+          updatedAt: new Date(t.updated_at),
+        }));
+        setThreads(loaded);
+
+        // If ?thread=X in URL, load that thread
+        const threadId = searchParams.get("thread");
+        if (threadId) {
+          const found = loaded.find(t => t.id === threadId);
+          if (found) loadThread(found);
+        }
+      } finally {
+        setThreadsLoading(false);
+      }
+    }
+    loadThreads();
+  }, []);
+
+  async function loadThread(t: Thread) {
+    if (t.messages.length > 0) { setActiveThread(t); return; }
+    try {
+      const res = await fetch(`/api/chat?threadId=${t.id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const msgs: Message[] = (data.messages ?? []).map((m: { id: string; role: string; content: string; created_at: string }) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        timestamp: new Date(m.created_at),
+      }));
+      const full = { ...t, mode: data.thread?.mode ?? t.mode, messages: msgs };
+      setActiveThread(full);
+      setThreads(prev => prev.map(x => x.id === t.id ? full : x));
+    } catch { setActiveThread(t); }
+  }
+
+  async function newThread() {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "thread", title: "New Chat", mode }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
     const t: Thread = {
-      id: crypto.randomUUID(),
-      title: "New Chat",
+      id: data.thread.id,
+      title: data.thread.title,
       mode,
       messages: [],
       updatedAt: new Date(),
@@ -81,38 +138,75 @@ export default function ChatPage() {
   const sendMessage = useCallback(async (text?: string) => {
     const content = (text ?? input).trim();
     if (!content || loading) return;
-
-    let thread = activeThread;
-    if (!thread) {
-      thread = { id: crypto.randomUUID(), title: content.slice(0, 50), mode, messages: [], updatedAt: new Date() };
-      setThreads(prev => [thread!, ...prev]);
-    }
-
-    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content, timestamp: new Date() };
-    const updatedThread = { ...thread, messages: [...thread.messages, userMsg], title: thread.messages.length === 0 ? content.slice(0, 50) : thread.title, updatedAt: new Date() };
-    setActiveThread(updatedThread);
-    setThreads(prev => prev.map(t => t.id === updatedThread.id ? updatedThread : t).filter(t => t) );
-    // Also add if new
-    setThreads(prev => prev.find(t => t.id === updatedThread.id) ? prev : [updatedThread, ...prev]);
     setInput("");
     setLoading(true);
+
+    let thread = activeThread;
+    let isNew = false;
+
+    // Create thread in DB if none active
+    if (!thread) {
+      isNew = true;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "thread", title: content.slice(0, 50), mode }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        thread = { id: data.thread.id, title: content.slice(0, 50), mode, messages: [], updatedAt: new Date() };
+        setThreads(prev => [thread!, ...prev]);
+        setActiveThread(thread);
+      } else {
+        // Fallback: local thread
+        thread = { id: crypto.randomUUID(), title: content.slice(0, 50), mode, messages: [], updatedAt: new Date() };
+      }
+    }
+
+    // If first message in existing thread, update title
+    if (!isNew && thread.messages.length === 0) {
+      const shortTitle = content.slice(0, 50);
+      setActiveThread(prev => prev ? { ...prev, title: shortTitle } : prev);
+      setThreads(prev => prev.map(t => t.id === thread!.id ? { ...t, title: shortTitle } : t));
+    }
+
+    // Add user message optimistically
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content, timestamp: new Date() };
+    const withUser = { ...thread, messages: [...thread.messages, userMsg], updatedAt: new Date() };
+    setActiveThread(withUser);
+    setThreads(prev => prev.map(t => t.id === withUser.id ? { ...t, updatedAt: new Date() } : t));
+
+    // Save user message to DB
+    fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "message", threadId: thread.id, role: "user", content }),
+    }).catch(() => {});
 
     try {
       const res = await fetch("/api/dr-neo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content, mode, history: updatedThread.messages.slice(-10) }),
+        body: JSON.stringify({ message: content, mode, history: withUser.messages.slice(-10) }),
       });
       const data = await res.json();
-      const assistantMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: data.reply ?? "I could not generate a response.", timestamp: new Date() };
-      const finalThread = { ...updatedThread, messages: [...updatedThread.messages, assistantMsg], updatedAt: new Date() };
-      setActiveThread(finalThread);
-      setThreads(prev => prev.map(t => t.id === finalThread.id ? finalThread : t));
+      const reply = data.reply ?? "I could not generate a response.";
+      const assistantMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: reply, timestamp: new Date() };
+      const final = { ...withUser, messages: [...withUser.messages, assistantMsg], updatedAt: new Date() };
+      setActiveThread(final);
+      setThreads(prev => prev.map(t => t.id === final.id ? { ...t, updatedAt: new Date() } : t));
+
+      // Save assistant message to DB
+      fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "message", threadId: thread!.id, role: "assistant", content: reply }),
+      }).catch(() => {});
     } catch {
       const errMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: "Connection error. Please check your API configuration.", timestamp: new Date() };
-      const finalThread = { ...updatedThread, messages: [...updatedThread.messages, errMsg], updatedAt: new Date() };
-      setActiveThread(finalThread);
-      setThreads(prev => prev.map(t => t.id === finalThread.id ? finalThread : t));
+      const final = { ...withUser, messages: [...withUser.messages, errMsg], updatedAt: new Date() };
+      setActiveThread(final);
+      setThreads(prev => prev.map(t => t.id === final.id ? { ...t, updatedAt: new Date() } : t));
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -123,7 +217,8 @@ export default function ChatPage() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   }
 
-  function deleteThread(id: string) {
+  async function deleteThread(id: string) {
+    await fetch(`/api/chat?threadId=${id}`, { method: "DELETE" });
     setThreads(prev => prev.filter(t => t.id !== id));
     if (activeThread?.id === id) setActiveThread(null);
   }
@@ -142,13 +237,16 @@ export default function ChatPage() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {threads.length === 0 && (
+            {threadsLoading && (
+              <p className="text-[11px] text-center py-6 px-2" style={{ color: "var(--text-dim)" }}>Loading…</p>
+            )}
+            {!threadsLoading && threads.length === 0 && (
               <p className="text-[11px] text-center py-6 px-2" style={{ color: "var(--text-dim)" }}>
                 Start a conversation to see history
               </p>
             )}
             {threads.map(t => (
-              <button key={t.id} onClick={() => setActiveThread(t)}
+              <button key={t.id} onClick={() => loadThread(t)}
                 className="w-full text-left px-3 py-2 rounded-xl group transition-all hover:bg-white/40 relative"
                 style={{ background: activeThread?.id === t.id ? "rgba(78,115,223,0.1)" : "transparent", border: activeThread?.id === t.id ? "1px solid rgba(78,115,223,0.2)" : "1px solid transparent" }}>
                 <div className="flex items-center gap-1.5 mb-0.5">

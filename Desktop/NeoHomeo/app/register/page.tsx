@@ -6,27 +6,12 @@ import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-const ROLES = [
-  { id: "student", label: "Student", desc: "Learning homeopathy", icon: "🎓", color: "#8A2BE2", bg: "rgba(138,43,226,0.08)" },
-  { id: "practitioner", label: "Practitioner", desc: "Clinical practice", icon: "🩺", color: "#4e73df", bg: "rgba(78,115,223,0.08)" },
-  { id: "educator", label: "Educator", desc: "Teaching & research", icon: "📚", color: "#4ECDC4", bg: "rgba(78,205,196,0.08)" },
-  { id: "admin", label: "Admin", desc: "Platform management", icon: "⚙️", color: "#F59E0B", bg: "rgba(245,158,11,0.08)" },
-];
-
-const ROLE_REDIRECTS: Record<string, string> = {
-  student: "/student",
-  practitioner: "/doctor",
-  educator: "/patient",
-  admin: "/admin",
-};
-
 export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [role, setRole] = useState("student");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
@@ -41,7 +26,7 @@ export default function RegisterPage() {
       email,
       password,
       options: {
-        data: { name, role },
+        data: { name, role: "student" },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -49,17 +34,11 @@ export default function RegisterPage() {
     if (err) { setError(err.message); setLoading(false); return; }
 
     if (data.user) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("profiles").upsert({
-        id: data.user.id,
-        email,
-        name,
-        role: role as "student" | "practitioner" | "educator" | "admin",
-        streak_days: 0,
-        xp_points: 0,
-      });
-      router.push(ROLE_REDIRECTS[role] ?? "/student");
+      router.push("/student");
       router.refresh();
+    } else {
+      setError("Check your email to confirm your account, then sign in.");
+      setLoading(false);
     }
   }
 
@@ -80,7 +59,7 @@ export default function RegisterPage() {
       <div style={{ width: 500, height: 500, background: "radial-gradient(circle, rgba(138,43,226,0.12) 0%, transparent 70%)", top: "5%", right: "10%", position: "fixed", borderRadius: "50%", filter: "blur(60px)", pointerEvents: "none" }} />
       <div style={{ width: 400, height: 400, background: "radial-gradient(circle, rgba(78,205,196,0.1) 0%, transparent 70%)", bottom: "10%", left: "10%", position: "fixed", borderRadius: "50%", filter: "blur(60px)", pointerEvents: "none" }} />
 
-      <div className="shard w-full max-w-md p-8 relative z-10 my-8">
+      <div className="shard w-full max-w-md p-8 relative z-10">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-2xl gradient-mineral flex items-center justify-center text-white font-black text-lg">N</div>
           <div>
@@ -90,33 +69,13 @@ export default function RegisterPage() {
         </div>
 
         <h1 className="text-2xl font-extrabold mb-1" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>Join NeoHomeo</h1>
-        <p className="text-sm mb-6" style={{ color: "var(--text-dim)" }}>Choose your role — this determines your dashboard and tools</p>
+        <p className="text-sm mb-6" style={{ color: "var(--text-dim)" }}>Your AI-powered homeopathy learning platform</p>
 
         {error && (
           <div className="mb-4 p-3 rounded-2xl text-sm font-medium" style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
             {error}
           </div>
         )}
-
-        {/* Role selector */}
-        <div className="grid grid-cols-2 gap-2 mb-5">
-          {ROLES.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setRole(r.id)}
-              className="p-3 rounded-2xl text-left transition-all"
-              style={{
-                background: role === r.id ? r.bg : "rgba(255,255,255,0.4)",
-                border: `1.5px solid ${role === r.id ? r.color : "var(--glass-border)"}`,
-              }}
-            >
-              <div className="text-xl mb-1">{r.icon}</div>
-              <p className="font-bold text-xs" style={{ color: role === r.id ? r.color : "var(--text-obsidian)" }}>{r.label}</p>
-              <p className="text-[10px] font-mono-neo" style={{ color: "var(--text-dim)" }}>{r.desc}</p>
-            </button>
-          ))}
-        </div>
 
         <button
           onClick={handleGoogle}
@@ -132,7 +91,7 @@ export default function RegisterPage() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
           )}
-          Continue with Google as {ROLES.find(r => r.id === role)?.label}
+          Continue with Google
         </button>
 
         <div className="flex items-center gap-3 mb-4">
@@ -146,7 +105,7 @@ export default function RegisterPage() {
             <label className="stat-label block mb-1.5">Full Name</label>
             <input
               type="text" value={name} onChange={(e) => setName(e.target.value)} required
-              placeholder="Dr. Jane Smith"
+              placeholder="Your name"
               className="w-full h-11 rounded-2xl px-4 text-sm font-medium outline-none"
               style={{ background: "rgba(255,255,255,0.6)", border: "1px solid var(--glass-border)", color: "var(--text-obsidian)" }}
             />
@@ -178,7 +137,7 @@ export default function RegisterPage() {
           <button type="submit" disabled={loading}
             className="w-full h-11 rounded-2xl text-white font-bold text-sm gradient-mineral hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 mt-2">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create Account as {ROLES.find(r => r.id === role)?.label}
+            Create Account
           </button>
         </form>
 

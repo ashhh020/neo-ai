@@ -56,7 +56,7 @@ const suggestedPrompts = [
 
 export default function StudentDashboard() {
   const { user } = useAuthStore();
-  const firstName = user?.name?.split(" ")[0] || "Practitioner";
+  const firstName = user?.name?.split(" ")[0] || "Student";
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5">

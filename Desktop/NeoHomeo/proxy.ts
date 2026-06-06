@@ -10,7 +10,7 @@ const ROLE_REDIRECTS: Record<string, string> = {
 
 const PUBLIC_PATHS = ["/login", "/register", "/auth", "/"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
