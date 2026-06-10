@@ -1,5 +1,6 @@
 "use client";
 
+import { authedFetch } from "@/lib/authed-fetch";
 import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -20,6 +21,8 @@ interface Rubric {
   path: string;
   is_mother: boolean;
   remedies: Remedy[];
+  grade?: number;
+  source?: string;
 }
 
 interface CaseRubric {
@@ -433,13 +436,14 @@ function RubricRow({ rubric, onAdd, inCase }: { rubric: Rubric; onAdd: (r: Rubri
   const [saved, setSaved] = useState(false);
   async function saveRubric(e: React.MouseEvent) {
     e.stopPropagation();
-    const res = await fetch("/api/saved-rubrics", {
+    const res = await authedFetch("/api/saved-rubrics", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         rubric_path: rubric.fullpath,
         chapter: rubric.chapter,
-        source_abbrev: "",
+        grade: rubric.grade ?? 1,
+        source_abbrev: rubric.source ?? "",
         remedies: rubric.remedies.map(([, name, grade]) => ({ name, grade })),
       }),
     });
