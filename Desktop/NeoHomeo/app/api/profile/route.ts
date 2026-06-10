@@ -1,34 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { getUserFromRequest, serviceClient as supabase } from "@/lib/supabase/api-auth";
 
-async function makeClient() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
+export async function GET(req: NextRequest) {
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-export async function GET() {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data: profile } = await supabase
+  const { data: profile } = await (supabase as any)
     .from("profiles")
-    .select("name, email, role, streak_days, xp_points, avatar_url")
+    .select("name, email, role, streak_days, xp_points, avatar_url, last_active_date")
     .eq("id", user.id)
     .maybeSingle();
 
-  // Fallback to auth metadata if profile doesn't exist yet
+  // ── Daily streak maintenance ──────────────────────────────────────────
+  // Bump the streak the first time the student loads their data each day.
+  // Same day → no change. Exactly the next day → +1. Gap of 2+ days → reset to 1.
+  const today = new Date().toISOString().split("T")[0];
+  let streak = profile?.streak_days ?? 0;
+  const last = profile?.last_active_date ?? null;
+
+  if (last !== today) {
+    if (!last) {
+      streak = 1;
+    } else {
+      const dayMs = 86_400_000;
+      const diff = Math.round(
+        (new Date(today).getTime() - new Date(last).getTime()) / dayMs
+      );
+      streak = diff === 1 ? streak + 1 : 1;
+    }
+    await (supabase as any)
+      .from("profiles")
+      .upsert(
+        { id: user.id, email: user.email, streak_days: streak, last_active_date: today },
+        { onConflict: "id" }
+      );
+  }
+
   const result = {
     id: user.id,
     email: user.email ?? "",
     name: profile?.name ?? user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Student",
     role: profile?.role ?? "student",
-    streak_days: profile?.streak_days ?? 0,
+    streak_days: streak,
     xp_points: profile?.xp_points ?? 0,
     avatar_url: profile?.avatar_url ?? null,
   };
@@ -37,9 +50,8 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
   const updates: Record<string, unknown> = {};
@@ -49,7 +61,7 @@ export async function PATCH(req: NextRequest) {
   if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url;
 
   // Upsert profile
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("profiles")
     .upsert({ id: user.id, email: user.email, ...updates }, { onConflict: "id" })
     .select()
@@ -61,9 +73,8 @@ export async function PATCH(req: NextRequest) {
 
 // XP increment helper — called after activities (quiz, flashcards, case save)
 export async function PUT(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { activity } = await req.json();
   const XP_MAP: Record<string, number> = {
@@ -77,7 +88,7 @@ export async function PUT(req: NextRequest) {
   const xpGain = XP_MAP[activity] ?? 5;
 
   // Get current XP
-  const { data: profile } = await supabase
+  const { data: profile } = await (supabase as any)
     .from("profiles")
     .select("xp_points, streak_days")
     .eq("id", user.id)
@@ -86,7 +97,7 @@ export async function PUT(req: NextRequest) {
   const currentXp = profile?.xp_points ?? 0;
   const newXp = currentXp + xpGain;
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("profiles")
     .upsert({ id: user.id, email: user.email, xp_points: newXp }, { onConflict: "id" })
     .select("xp_points, streak_days")

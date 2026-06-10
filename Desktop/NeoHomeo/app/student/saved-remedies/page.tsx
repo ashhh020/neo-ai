@@ -1,7 +1,9 @@
 "use client";
+import { authedFetch } from "@/lib/authed-fetch";
 
 import { useState, useEffect } from "react";
-import { FlaskConical, Trash2, ChevronRight, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { FlaskConical, Trash2, ChevronRight, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 interface SavedRemedy {
@@ -27,11 +29,12 @@ const remedyColor = (name: string) => {
 export default function SavedRemediesPage() {
   const [remedies, setRemedies] = useState<SavedRemedy[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/saved-remedies");
+        const res = await authedFetch("/api/saved-remedies");
         if (res.ok) {
           const data = await res.json();
           setRemedies(data.remedies ?? []);
@@ -44,7 +47,7 @@ export default function SavedRemediesPage() {
   }, []);
 
   async function deleteRemedy(id: string) {
-    await fetch(`/api/saved-remedies?id=${id}`, { method: "DELETE" });
+    await authedFetch(`/api/saved-remedies?id=${id}`, { method: "DELETE" });
     setRemedies((prev) => prev.filter((r) => r.id !== id));
     toast.success("Remedy removed");
   }
@@ -54,6 +57,12 @@ export default function SavedRemediesPage() {
       <div>
         <h1 className="text-2xl font-extrabold" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>Saved Remedies</h1>
         <p className="text-sm font-mono-neo mt-0.5" style={{ color: "var(--text-dim)" }}>{remedies.length} remedies bookmarked</p>
+      </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "var(--text-dim)" }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search remedies…"
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm bg-white/60 border focus:outline-none"
+          style={{ borderColor: "var(--glass-border)", color: "var(--text-obsidian)" }} />
       </div>
 
       {loading && (
@@ -72,7 +81,7 @@ export default function SavedRemediesPage() {
 
       {!loading && remedies.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {remedies.map((rem) => {
+          {remedies.filter(r => !search || r.remedy_name.toLowerCase().includes(search.toLowerCase()) || (r.kingdom ?? "").toLowerCase().includes(search.toLowerCase())).map((rem) => {
             const color = remedyColor(rem.remedy_name);
             const keynotes = rem.keynotes ?? [];
             return (
@@ -117,9 +126,10 @@ export default function SavedRemediesPage() {
                   </p>
                 )}
 
-                <button className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-mineral)" }}>
+                <Link href={`/student/materia-medica?q=${encodeURIComponent(rem.remedy_name)}`}
+                  className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-mineral)" }}>
                   View full profile <ChevronRight className="h-3 w-3" />
-                </button>
+                </Link>
               </div>
             );
           })}

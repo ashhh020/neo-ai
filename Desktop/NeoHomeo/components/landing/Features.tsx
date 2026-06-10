@@ -5,7 +5,7 @@ const features = [
     icon: MessageSquareText,
     title: "Patient Portal",
     color: "#4ECDC4",
-    items: ["AI pre-assessment with Dr. Neo", "Doctor discovery & booking", "Remedy tracker & diary", "Medical records timeline"],
+    items: ["AI pre-assessment with Hahnemann AI", "Doctor discovery & booking", "Remedy tracker & diary", "Medical records timeline"],
   },
   {
     icon: Stethoscope,

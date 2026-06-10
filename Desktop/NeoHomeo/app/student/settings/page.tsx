@@ -1,21 +1,53 @@
 "use client";
+import { authedFetch } from "@/lib/authed-fetch";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useRouter } from "next/navigation";
-import { User, Lock, Bell, Palette, LogOut, Save } from "lucide-react";
+import { User, Lock, Bell, Palette, LogOut, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
   const { user, logout, updateUser } = useAuthStore();
   const router = useRouter();
   const [name, setName] = useState(user?.name || "");
-  const [email] = useState(user?.email || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState({ daily: true, streakReminder: true, newContent: false });
 
-  function handleSave() {
-    updateUser({ name });
-    toast.success("Profile updated!");
+  // Load the canonical profile from the DB on mount
+  useEffect(() => {
+    authedFetch("/api/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.profile) {
+          setName(d.profile.name ?? "");
+          setEmail(d.profile.email ?? "");
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleSave() {
+    if (!name.trim()) {
+      toast.error("Name cannot be empty");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await authedFetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      updateUser({ name: name.trim() });
+      toast.success("Profile updated!");
+    } catch {
+      toast.error("Could not save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleLogout() {
@@ -71,9 +103,9 @@ export default function SettingsPage() {
             style={{ background: "rgba(255,255,255,0.4)", border: "1px solid var(--glass-border)", color: "var(--text-obsidian)" }} />
         </div>
 
-        <button onClick={handleSave}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-sm gradient-mineral hover:opacity-90">
-          <Save className="h-4 w-4" /> Save Changes
+        <button onClick={handleSave} disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-sm gradient-mineral hover:opacity-90 disabled:opacity-50">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Changes
         </button>
       </div>
 

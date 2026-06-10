@@ -1,7 +1,8 @@
 "use client";
+import { authedFetch } from "@/lib/authed-fetch";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Plus, ChevronDown, BookOpen, Layers, FlaskConical, Stethoscope, Library, Trash2, Clock } from "lucide-react";
+import { Send, Plus, ChevronDown, BookOpen, Layers, FlaskConical, Stethoscope, Library, Trash2, Clock, Copy, Check } from "lucide-react";
 import { MessageRenderer } from "@/components/shared/MessageRenderer";
 import { useSearchParams } from "next/navigation";
 
@@ -31,15 +32,6 @@ const MODES = [
 
 const MODE_COLORS: Record<string, string> = Object.fromEntries(MODES.map(m => [m.id, m.color]));
 
-const STARTER_PROMPTS: Record<string, string[]> = {
-  general: ["What is homeopathy?", "Explain the law of similars", "What is potentisation?"],
-  "materia-medica": ["Explain Sulphur keynotes", "Compare Pulsatilla vs Sepia", "Describe Arsenicum Album"],
-  organon: ["Explain Aphorism 153", "What is the vital force?", "Define miasm according to Hahnemann"],
-  repertory: ["How to use Kent repertory?", "What are PQRS symptoms?", "Explain rubric grading"],
-  clinical: ["Case taking methodology", "Explain totality of symptoms", "What is the similimum?"],
-  research: ["Evidence base for homeopathy", "Nano-pharmacology theory", "Meta-analysis studies"],
-};
-
 function formatTime(d: Date) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
@@ -53,6 +45,7 @@ function Sparkles({ className }: { className?: string }) {
 }
 
 export default function ChatPage() {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeThread, setActiveThread] = useState<Thread | null>(null);
   const [mode, setMode] = useState("general");
@@ -62,18 +55,29 @@ export default function ChatPage() {
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastMsgRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const msgs = activeThread?.messages;
+    if (!msgs || msgs.length === 0) return;
+    const last = msgs[msgs.length - 1];
+    // For a new assistant answer, align its TOP to the viewport so the reader
+    // starts at the beginning and scrolls down. For the user's own message,
+    // jump to the bottom so they see it land with the typing indicator.
+    if (last.role === "assistant") {
+      lastMsgRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [activeThread?.messages]);
 
   // Load threads from DB on mount
   useEffect(() => {
     async function loadThreads() {
       try {
-        const res = await fetch("/api/chat");
+        const res = await authedFetch("/api/chat");
         if (!res.ok) return;
         const data = await res.json();
         const loaded: Thread[] = (data.threads ?? []).map((t: { id: string; title: string; mode: string; updated_at: string }) => ({
@@ -85,11 +89,27 @@ export default function ChatPage() {
         }));
         setThreads(loaded);
 
-        // If ?thread=X in URL, load that thread
+        // If ?thread=X in URL, load that thread — fetch directly in case it's not yet in list
         const threadId = searchParams.get("thread");
         if (threadId) {
           const found = loaded.find(t => t.id === threadId);
-          if (found) loadThread(found);
+          if (found) {
+            loadThread(found);
+          } else {
+            // Direct fetch for threads not yet in the list
+            try {
+              const tr = await authedFetch(`/api/chat?threadId=${threadId}`);
+              if (tr.ok) {
+                const td = await tr.json();
+                const msgs: Message[] = (td.messages ?? []).map((m: { id: string; role: string; content: string; created_at: string }) => ({
+                  id: m.id, role: m.role as "user" | "assistant", content: m.content, timestamp: new Date(m.created_at),
+                }));
+                const ghost: Thread = { id: threadId, title: td.thread?.title ?? "Chat", mode: td.thread?.mode ?? "general", messages: msgs, updatedAt: new Date() };
+                setThreads(prev => [ghost, ...prev]);
+                setActiveThread(ghost);
+              }
+            } catch { /* ignore */ }
+          }
         }
       } finally {
         setThreadsLoading(false);
@@ -101,7 +121,7 @@ export default function ChatPage() {
   async function loadThread(t: Thread) {
     if (t.messages.length > 0) { setActiveThread(t); return; }
     try {
-      const res = await fetch(`/api/chat?threadId=${t.id}`);
+      const res = await authedFetch(`/api/chat?threadId=${t.id}`);
       if (!res.ok) return;
       const data = await res.json();
       const msgs: Message[] = (data.messages ?? []).map((m: { id: string; role: string; content: string; created_at: string }) => ({
@@ -116,8 +136,21 @@ export default function ChatPage() {
     } catch { setActiveThread(t); }
   }
 
+  // Cmd+N / Ctrl+N → new thread (L3)
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        newThread();
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   async function newThread() {
-    const res = await fetch("/api/chat", {
+    const res = await authedFetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "thread", title: "New Chat", mode }),
@@ -147,7 +180,7 @@ export default function ChatPage() {
     // Create thread in DB if none active
     if (!thread) {
       isNew = true;
-      const res = await fetch("/api/chat", {
+      const res = await authedFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "thread", title: content.slice(0, 50), mode }),
@@ -177,14 +210,14 @@ export default function ChatPage() {
     setThreads(prev => prev.map(t => t.id === withUser.id ? { ...t, updatedAt: new Date() } : t));
 
     // Save user message to DB
-    fetch("/api/chat", {
+    authedFetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "message", threadId: thread.id, role: "user", content }),
     }).catch(() => {});
 
     try {
-      const res = await fetch("/api/dr-neo", {
+      const res = await authedFetch("/api/dr-neo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: content, mode, history: withUser.messages.slice(-10) }),
@@ -197,7 +230,7 @@ export default function ChatPage() {
       setThreads(prev => prev.map(t => t.id === final.id ? { ...t, updatedAt: new Date() } : t));
 
       // Save assistant message to DB
-      fetch("/api/chat", {
+      authedFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "message", threadId: thread!.id, role: "assistant", content: reply }),
@@ -218,7 +251,7 @@ export default function ChatPage() {
   }
 
   async function deleteThread(id: string) {
-    await fetch(`/api/chat?threadId=${id}`, { method: "DELETE" });
+    await authedFetch(`/api/chat?threadId=${id}`, { method: "DELETE" });
     setThreads(prev => prev.filter(t => t.id !== id));
     if (activeThread?.id === id) setActiveThread(null);
   }
@@ -229,7 +262,7 @@ export default function ChatPage() {
     <div className="flex h-[calc(100vh-64px)] overflow-hidden">
       {/* Thread sidebar */}
       {sidebarOpen && (
-        <div className="w-56 flex-shrink-0 flex flex-col border-r overflow-hidden" style={{ background: "rgba(255,255,255,0.3)", backdropFilter: "blur(20px)", borderColor: "var(--glass-border)" }}>
+        <div className="w-56 flex-shrink-0 hidden md:flex flex-col border-r overflow-hidden" style={{ background: "rgba(255,255,255,0.3)", backdropFilter: "blur(20px)", borderColor: "var(--glass-border)" }}>
           <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--glass-border)" }}>
             <button onClick={newThread}
               className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-sm gradient-mineral text-white">
@@ -317,25 +350,18 @@ export default function ChatPage() {
                 <currentMode.icon className="h-8 w-8 text-white" />
               </div>
               <h2 className="text-xl font-extrabold mb-2" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>
-                Dr. Neo AI
+                Hahnemann AI
               </h2>
               <p className="text-sm mb-6 max-w-sm" style={{ color: "var(--text-dim)" }}>
-                Mode: <span className="font-semibold" style={{ color: currentMode.color }}>{currentMode.label}</span> · Ask anything about homeopathy
+                Your Intelligent Homeopathy Companion
               </p>
-              <div className="flex flex-col gap-2 w-full max-w-xs">
-                {STARTER_PROMPTS[mode]?.map(p => (
-                  <button key={p} onClick={() => sendMessage(p)}
-                    className="px-4 py-3 rounded-2xl text-sm font-medium text-left transition-all hover:shadow-md"
-                    style={{ background: "rgba(255,255,255,0.6)", border: "1px solid var(--glass-border)", color: "var(--text-obsidian)" }}>
-                    {p}
-                  </button>
-                ))}
-              </div>
             </div>
           ) : (
             <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-              {activeThread.messages.map(msg => (
-                <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              {activeThread.messages.map((msg, idx) => (
+                <div key={msg.id}
+                  ref={idx === activeThread.messages.length - 1 ? lastMsgRef : undefined}
+                  className={`flex scroll-mt-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   {msg.role === "assistant" && (
                     <div className="w-8 h-8 rounded-xl gradient-mineral flex items-center justify-center text-white font-black text-xs flex-shrink-0 mr-3 mt-0.5">N</div>
                   )}
@@ -352,10 +378,28 @@ export default function ChatPage() {
                         : <MessageRenderer content={msg.content} />
                       }
                     </div>
-                    <p className="text-[10px] font-mono-neo mt-1 px-1"
-                      style={{ color: "var(--text-dim)", textAlign: msg.role === "user" ? "right" : "left" }}>
-                      {formatTime(msg.timestamp)}
-                    </p>
+                    <div className="flex items-center mt-1 px-1 gap-2" style={{ justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                      <p className="text-[10px] font-mono-neo" style={{ color: "var(--text-dim)" }}>
+                        {formatTime(msg.timestamp)}
+                      </p>
+                      {msg.role === "assistant" && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(msg.content);
+                            setCopiedId(msg.id);
+                            setTimeout(() => setCopiedId(null), 2000);
+                          }}
+                          className="text-[10px] flex items-center gap-0.5 hover:opacity-80 transition-opacity"
+                          style={{ color: "var(--text-dim)" }}
+                          title="Copy response"
+                        >
+                          {copiedId === msg.id
+                            ? <><Check className="h-3 w-3 text-green-500" /><span className="text-green-500">Copied</span></>
+                            : <><Copy className="h-3 w-3" /><span>Copy</span></>
+                          }
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -387,7 +431,7 @@ export default function ChatPage() {
                 value={input}
                 onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px"; }}
                 onKeyDown={handleKey}
-                placeholder={`Ask Dr. Neo about ${currentMode.label.toLowerCase()}…`}
+                placeholder={`Ask Hahnemann AI about ${currentMode.label.toLowerCase()}…`}
                 rows={1}
                 className="flex-1 bg-transparent outline-none resize-none text-sm font-medium leading-relaxed"
                 style={{ color: "var(--text-obsidian)", maxHeight: 160, minHeight: 24 }}
@@ -401,7 +445,7 @@ export default function ChatPage() {
               </button>
             </div>
             <p className="text-[10px] font-mono-neo text-center mt-2" style={{ color: "var(--text-dim)" }}>
-              Dr. Neo AI · {currentMode.label} mode · Enter to send · Shift+Enter for new line
+              Hahnemann AI · {currentMode.label} mode · Enter to send · Shift+Enter for new line
             </p>
           </div>
         </div>

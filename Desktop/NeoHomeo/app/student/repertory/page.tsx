@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search, Plus, Trash2, BookOpen, X, ChevronRight, Loader2,
   FlaskConical, BarChart3, AlertCircle, Save, FolderOpen,
-  Grid3X3, List, ChevronDown, Tag, Filter,
+  Grid3X3, List, ChevronDown, Tag, Filter, Bookmark,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -428,6 +430,24 @@ function LoadCaseModal({ onLoad, onClose }: { onLoad: (rubrics: CaseRubric[]) =>
 // ─── Rubric Row ───────────────────────────────────────────────────────────────
 
 function RubricRow({ rubric, onAdd, inCase }: { rubric: Rubric; onAdd: (r: Rubric) => void; inCase: boolean }) {
+  const [saved, setSaved] = useState(false);
+  async function saveRubric(e: React.MouseEvent) {
+    e.stopPropagation();
+    const res = await fetch("/api/saved-rubrics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rubric_path: rubric.fullpath,
+        chapter: rubric.chapter,
+        source_abbrev: "",
+        remedies: rubric.remedies.map(([, name, grade]) => ({ name, grade })),
+      }),
+    });
+    if (res.ok || res.status === 409) {
+      setSaved(true);
+      toast.success("Rubric saved");
+    }
+  }
   const [open, setOpen] = useState(false);
   const color = chColor(rubric.chapter);
 
@@ -439,6 +459,16 @@ function RubricRow({ rubric, onAdd, inCase }: { rubric: Rubric; onAdd: (r: Rubri
           style={{ background: `${color}20`, color }}>{rubric.chapter}</span>
         <span className="flex-1 text-sm font-medium truncate" style={{ color: "var(--text-obsidian)" }}>{rubric.fullpath}</span>
         <span className="text-[11px] flex-shrink-0 font-mono-neo" style={{ color: "var(--text-dim)" }}>{rubric.remedies.length}</span>
+        <button onClick={saveRubric}
+          className="flex-shrink-0 p-1.5 rounded-xl transition-all"
+          title="Save rubric"
+          style={{
+            background: saved ? "rgba(138,43,226,0.1)" : "rgba(255,255,255,0.7)",
+            color: saved ? "#8A2BE2" : "var(--text-dim)",
+            border: `1px solid ${saved ? "#8A2BE2" : "var(--glass-border)"}`,
+          }}>
+          <Bookmark className="h-3.5 w-3.5" fill={saved ? "#8A2BE2" : "none"} />
+        </button>
         <button onClick={e => { e.stopPropagation(); onAdd(rubric); }}
           className="flex-shrink-0 p-1.5 rounded-xl transition-all"
           style={{
@@ -466,12 +496,13 @@ function RubricRow({ rubric, onAdd, inCase }: { rubric: Rubric; onAdd: (r: Rubri
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function RepertoryPage() {
+function RepertoryPageInner() {
+  const searchParams = useSearchParams();
   const [repertory, setRepertory] = useState("publicum");
   const [showRepPicker, setShowRepPicker] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [remedyFilter, setRemedyFilter] = useState("");
-  const [activeChapter, setActiveChapter] = useState("All");
+  const [activeChapter, setActiveChapter] = useState(searchParams.get("chapter") ?? "All");
   const chapters = CHAPTERS_BY_ABBREV[repertory] ?? CHAPTERS_BY_ABBREV["publicum"];
   const activeRep = REPERTORIES.find(r => r.abbrev === repertory)!;
   const [minWeight, setMinWeight] = useState(1);
@@ -529,6 +560,42 @@ export default function RepertoryPage() {
   }
 
   const caseIds = new Set(caseRubrics.map(cr => cr.rubric.id));
+
+  // Load a saved case from URL param ?caseId=X (M6)
+  useEffect(() => {
+    const caseId = searchParams.get("caseId");
+    if (!caseId) return;
+    fetch(`/api/cases?caseId=${caseId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.rubrics) return;
+        const loaded: CaseRubric[] = (data.rubrics as Array<{ rubric_path: string; chapter: string; weight: number; label: string; rubric_id: string; remedies?: Remedy[] }>).map(r => ({
+          rubric: {
+            id: r.rubric_id ?? r.rubric_path,
+            chapter: r.chapter,
+            fullpath: r.rubric_path,
+            path: r.rubric_path,
+            is_mother: false,
+            remedies: r.remedies ?? [],
+          },
+          weight: (r.weight ?? 1) as 1 | 2 | 3,
+          label: r.label ?? "",
+        }));
+        setCaseRubrics(loaded);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-run search if ?q or ?chapter was provided via URL
+  useEffect(() => {
+    const urlQ = searchParams.get("q");
+    const urlCh = searchParams.get("chapter");
+    if (urlQ || urlCh) {
+      doSearch(0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="p-4 md:p-5 max-w-[1600px] mx-auto">
@@ -695,12 +762,19 @@ export default function RepertoryPage() {
             </div>
           )}
 
-          {/* Results */}
+          {/* Results + Grade Legend */}
           {searched && !loading && (
-            <p className="text-xs font-mono-neo" style={{ color: "var(--text-dim)" }}>
-              {total.toLocaleString()} rubrics found · showing {results.length}
-              {remedyFilter && ` · filtered by "${remedyFilter}"`}
-            </p>
+            <div className="flex flex-wrap items-center gap-3 justify-between">
+              <p className="text-xs font-mono-neo" style={{ color: "var(--text-dim)" }}>
+                {total.toLocaleString()} rubrics found · showing {results.length}
+                {remedyFilter && ` · filtered by "${remedyFilter}"`}
+              </p>
+              <div className="flex items-center gap-3 text-[10px] font-semibold font-mono-neo">
+                <span style={{ color: "#ef4444" }}>●●● Grade 3</span>
+                <span style={{ color: "#4e73df" }}>●● Grade 2</span>
+                <span style={{ color: "#9ca3af" }}>● Grade 1</span>
+              </div>
+            </div>
           )}
 
           <div className="space-y-2">
@@ -820,5 +894,13 @@ export default function RepertoryPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RepertoryPage() {
+  return (
+    <Suspense>
+      <RepertoryPageInner />
+    </Suspense>
   );
 }

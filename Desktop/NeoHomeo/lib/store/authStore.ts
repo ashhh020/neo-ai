@@ -25,19 +25,35 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   init: async () => {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    // Use getSession() (reads the persisted session, no mandatory network
+    // round-trip) so a transient network failure does NOT log the user out
+    // or bounce them back to /login — important over tunnels / mobile.
+    let user: { id: string; email?: string; user_metadata?: { name?: string; full_name?: string; role?: string } } | null = null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      user = session?.user ?? null;
+    } catch {
+      user = null;
+    }
 
     if (!user) {
       set({ user: null, isAuthenticated: false, loading: false });
       return;
     }
 
-    // Try to load profile from DB
-    const { data: profile } = await supabase
-      .from("profiles" as never)
-      .select("name, role, avatar_url")
-      .eq("id", user.id)
-      .single() as { data: { name: string; role: string; avatar_url: string | null } | null };
+    // Try to load profile from DB (never let this block auth)
+    type ProfileRow = { name: string; role: string; avatar_url: string | null };
+    let profile: ProfileRow | null = null;
+    try {
+      const res = await supabase
+        .from("profiles" as never)
+        .select("name, role, avatar_url")
+        .eq("id", user.id)
+        .maybeSingle();
+      profile = (res.data as unknown as ProfileRow | null) ?? null;
+    } catch {
+      profile = null;
+    }
 
     const name =
       profile?.name ||

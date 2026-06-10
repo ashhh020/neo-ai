@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, Search, ChevronDown } from "lucide-react";
+import { Bell, Search, ChevronDown, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useUIStore } from "@/lib/store/uiStore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ interface TopBarProps {
 
 export function TopBar({ title, showSearch = true }: TopBarProps) {
   const { user, logout } = useAuthStore();
+  const { openMobileNav } = useUIStore();
   const router = useRouter();
 
   function handleLogout() {
@@ -33,12 +35,21 @@ export function TopBar({ title, showSearch = true }: TopBarProps) {
   return (
     <header className="h-14 sticky top-0 z-40 flex items-center px-4 gap-4"
       style={{ background: "var(--glass-base)", backdropFilter: "blur(20px) saturate(150%)", WebkitBackdropFilter: "blur(20px) saturate(150%)", borderBottom: "1px solid var(--glass-border)" }}>
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={openMobileNav}
+        className="md:hidden p-2 -ml-1 rounded-lg hover:bg-white/40 transition-colors"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" style={{ color: "var(--text-obsidian)" }} />
+      </button>
+
       {title && (
         <h1 className="text-base font-semibold font-poppins hidden sm:block">{title}</h1>
       )}
 
       {showSearch && (
-        <div className="flex-1 max-w-sm">
+        <div className="flex-1 max-w-sm hidden sm:block">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input

@@ -10,6 +10,25 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// ── In-process response cache (5-minute TTL) ─────────────────────────────────
+const RESP_CACHE = new Map<string, { data: unknown; ts: number }>();
+const RESP_TTL_MS = 5 * 60 * 1000; // 5 min
+const MAX_RESP_CACHE = 200;
+
+function cacheGet(key: string) {
+  const entry = RESP_CACHE.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > RESP_TTL_MS) { RESP_CACHE.delete(key); return null; }
+  return entry.data;
+}
+function cacheSet(key: string, data: unknown) {
+  if (RESP_CACHE.size >= MAX_RESP_CACHE) {
+    const oldest = RESP_CACHE.keys().next().value;
+    if (oldest) RESP_CACHE.delete(oldest);
+  }
+  RESP_CACHE.set(key, { data, ts: Date.now() });
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const q           = searchParams.get("q")?.trim() ?? "";
@@ -24,11 +43,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [], total: 0 });
   }
 
+  // Build cache key
+  const cacheKey = `${abbrev}|${q}|${chapter}|${remedy}|${minWeight}|${page}|${limit}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached, { headers: { "X-Cache": "HIT" } });
+  }
+
   // For non-publicum repertories, use live homeoint.org scraper
   if (abbrev !== "publicum" && LIVE_REPERTORIES[abbrev]) {
     try {
       const results = await searchLiveRepertory(abbrev, q, chapter || undefined, minWeight, remedy || undefined, limit);
-      return NextResponse.json({ results, total: results.length, filtered: results.length, page, limit, source: "live" });
+      const payload = { results, total: results.length, filtered: results.length, page, limit, source: "live" };
+      cacheSet(cacheKey, payload);
+      return NextResponse.json(payload);
     } catch (err) {
       return NextResponse.json({ error: "Live fetch failed", results: [], total: 0 }, { status: 500 });
     }
@@ -81,11 +109,13 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({
+  const payload = {
     results,
     total: count ?? 0,
     filtered: results.length,
     page,
     limit,
-  });
+  };
+  cacheSet(cacheKey, payload);
+  return NextResponse.json(payload);
 }

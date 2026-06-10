@@ -1,25 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-
-async function makeClient() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
+import { getUserFromRequest, serviceClient as supabase } from "@/lib/supabase/api-auth";
 
 export async function GET(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = req.nextUrl;
+    const { searchParams } = req.nextUrl;
   const deck = searchParams.get("deck");
 
-  let query = supabase
+  let query = (supabase as any)
     .from("flashcard_reviews")
     .select("card_id, deck, ease_factor, interval_days, repetitions, next_review_at, last_grade, updated_at")
     .eq("user_id", user.id);
@@ -32,17 +21,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
+    const body = await req.json();
   const { card_id, deck, grade, ease_factor, interval_days, repetitions, next_review_at } = body;
 
   if (!card_id) return NextResponse.json({ error: "card_id required" }, { status: 400 });
 
   // Upsert by (user_id, card_id)
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("flashcard_reviews")
     .upsert({
       user_id: user.id,

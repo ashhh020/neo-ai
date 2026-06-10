@@ -13,9 +13,9 @@ export const metadata: Metadata = {
     template: "%s | NeoHomeo",
   },
   description:
-    "NeoHomeo is an AI-powered homeopathic healthcare platform. Patient-Centric. Root-Cause Focused. Book appointments, consult with doctors, and get personalised homeopathic care powered by Dr. Neo AI.",
+    "NeoHomeo is an AI-powered homeopathic healthcare platform. Patient-Centric. Root-Cause Focused. Book appointments, consult with doctors, and get personalised homeopathic care powered by Hahnemann AI.",
   keywords: [
-    "homeopathy", "homeopathic doctor", "AI healthcare", "Dr Neo AI",
+    "homeopathy", "homeopathic doctor", "AI healthcare", "Hahnemann AI",
     "online homeopathy", "homeopathic treatment", "holistic healthcare",
     "homeopathic consultation", "NeoHomeo",
   ],
@@ -29,13 +29,13 @@ export const metadata: Metadata = {
     url: BASE_URL,
     siteName: "NeoHomeo",
     title: "NeoHomeo — AI-Powered Homeopathic Healthcare",
-    description: "Patient-Centric. Root-Cause Focused. Book homeopathic consultations and get AI-powered care with Dr. Neo.",
+    description: "Patient-Centric. Root-Cause Focused. Book homeopathic consultations and get AI-powered care with Hahnemann AI.",
     images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "NeoHomeo" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "NeoHomeo — AI-Powered Homeopathic Healthcare",
-    description: "Patient-Centric. Root-Cause Focused. Powered by Dr. Neo AI.",
+    description: "Patient-Centric. Root-Cause Focused. Powered by Hahnemann AI.",
     images: ["/opengraph-image.png"],
   },
   robots: {
@@ -51,7 +51,7 @@ const jsonLd = {
   name: "NeoHomeo",
   url: BASE_URL,
   logo: `${BASE_URL}/logo.png`,
-  description: "AI-powered homeopathic healthcare platform offering patient-centric, root-cause focused consultations powered by Dr. Neo AI.",
+  description: "AI-powered homeopathic healthcare platform offering patient-centric, root-cause focused consultations powered by Hahnemann AI.",
   medicalSpecialty: "Homeopathic",
   availableService: { "@type": "MedicalTherapy", name: "Homeopathic Consultation" },
   sameAs: ["https://www.neohomeo.in"],

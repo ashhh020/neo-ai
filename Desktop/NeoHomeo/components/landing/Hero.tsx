@@ -43,7 +43,7 @@ export function Hero() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-1.5 mb-8 shadow-sm">
             <Sparkles className="h-3.5 w-3.5" style={{ color: "#8A2BE2" }} />
-            <span className="text-xs font-medium">Powered by Dr. Neo AI · Gemini</span>
+            <span className="text-xs font-medium">Powered by Hahnemann AI · Qwen3</span>
             <span className="h-1 w-1 rounded-full bg-muted-foreground" />
             <span className="text-xs text-muted-foreground">Now in early access</span>
           </div>

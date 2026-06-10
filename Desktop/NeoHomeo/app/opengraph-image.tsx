@@ -83,7 +83,7 @@ export default function Image() {
             lineHeight: 1.5,
           }}
         >
-          Patient-Centric · Root-Cause Focused · Powered by Dr. Neo AI
+          Patient-Centric · Root-Cause Focused · Powered by Hahnemann AI
         </div>
 
         {/* Bottom URL */}
