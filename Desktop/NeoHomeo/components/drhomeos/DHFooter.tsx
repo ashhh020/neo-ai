@@ -41,11 +41,11 @@ export function DHFooter() {
               </ul>
             </div>
             <div>
-              <div className="font-bold mb-3 text-xs uppercase tracking-wider" style={{ color: "var(--text-obsidian)" }}>Company</div>
+              <div className="font-bold mb-3 text-xs uppercase tracking-wider" style={{ color: "var(--text-obsidian)" }}>Info</div>
               <ul className="space-y-2">
-                {[["NeoHomeo (Patient Platform)", "https://neohomeo.com"],["About", "/about"],["Privacy Policy", "/privacy"],["Terms", "/terms"]].map(([label, href]) => (
+                {[["About", "/about"],["Privacy Policy", "/privacy"],["Terms", "/terms"]].map(([label, href]) => (
                   <li key={label}>
-                    <a href={href} className="text-xs hover:text-[var(--text-obsidian)] transition-colors" style={{ color: "var(--text-dim)" }}>{label}</a>
+                    <Link href={href} className="text-xs hover:text-[var(--text-obsidian)] transition-colors" style={{ color: "var(--text-dim)" }}>{label}</Link>
                   </li>
                 ))}
               </ul>

@@ -2,7 +2,7 @@
 import { authedFetch } from "@/lib/authed-fetch";
 
 import { useState, useEffect } from "react";
-import { Bookmark, Trash2, ChevronRight, Calendar, Loader2, FolderOpen, FileText } from "lucide-react";
+import { Bookmark, Trash2, ChevronRight, Calendar, Loader2, FolderOpen, FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -67,11 +67,18 @@ export default function SavedCasesPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-extrabold" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>Saved Cases</h1>
-        <p className="text-sm font-mono-neo mt-0.5" style={{ color: "var(--text-dim)" }}>
-          {files.length} case file{files.length === 1 ? "" : "s"} · {totalCases} case{totalCases === 1 ? "" : "s"}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>Saved Cases</h1>
+          <p className="text-sm font-mono-neo mt-0.5" style={{ color: "var(--text-dim)" }}>
+            {files.length} case file{files.length === 1 ? "" : "s"} · {totalCases} case{totalCases === 1 ? "" : "s"}
+          </p>
+        </div>
+        <Link href="/student/take-case"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-105"
+          style={{ background: "linear-gradient(135deg,#4e73df,#8A2BE2)" }}>
+          <Plus className="h-4 w-4" /> Take New Case
+        </Link>
       </div>
 
       {loading && (

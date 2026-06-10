@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Search, BookOpen, X, ChevronRight, Leaf, Gem, Shell,
-  FlaskConical, Loader2, ExternalLink, AlertCircle, Bookmark,
+  FlaskConical, Loader2, AlertCircle, Bookmark, Check,
 } from "lucide-react";
 import { authedFetch } from "@/lib/authed-fetch";
 import { toast } from "sonner";
@@ -217,21 +217,25 @@ function RemedyCard({
   remedy,
   authorColor,
   onClick,
+  onSave,
+  saved,
 }: {
   remedy: Remedy;
   authorColor: string;
   onClick: () => void;
+  onSave: (e: React.MouseEvent) => void;
+  saved: boolean;
 }) {
   const meta = CATEGORY_META[remedy.category] ?? CATEGORY_META.plant;
   return (
-    <button
-      onClick={onClick}
-      className="text-left w-full rounded-2xl p-4 transition-all hover:scale-[1.01] active:scale-[0.99]"
+    <div
+      className="relative rounded-2xl p-4 transition-all hover:scale-[1.01] cursor-pointer"
       style={{
         background: "rgba(255,255,255,0.55)",
         border: "1px solid var(--glass-border)",
         backdropFilter: "blur(12px)",
       }}
+      onClick={onClick}
     >
       <div className="flex items-start justify-between mb-1.5">
         <div className="flex-1 min-w-0">
@@ -244,19 +248,29 @@ function RemedyCard({
             </p>
           )}
         </div>
-        <span
-          className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ml-2 flex-shrink-0"
-          style={{ background: meta.bg, color: meta.color }}
-        >
-          {meta.icon}{remedy.category}
-        </span>
+        <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+          <span
+            className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ background: meta.bg, color: meta.color }}
+          >
+            {meta.icon}{remedy.category}
+          </span>
+          <button
+            onClick={onSave}
+            className="p-1 rounded-lg hover:bg-white/60 transition-colors"
+            style={{ color: saved ? authorColor : "var(--text-dim)" }}
+            title={saved ? "Saved" : "Save remedy"}
+          >
+            <Bookmark className="h-3.5 w-3.5" fill={saved ? authorColor : "none"} />
+          </button>
+        </div>
       </div>
       {remedy.intro && (
         <p className="text-[11px] leading-relaxed line-clamp-2" style={{ color: "var(--text-dim)" }}>
           {remedy.intro}
         </p>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -354,28 +368,22 @@ function RemedyDetail({
             <button
               onClick={handleSave}
               disabled={saving}
-              className="p-2 rounded-xl hover:bg-white/40 transition-colors disabled:opacity-50"
-              style={{ color: saved ? authorColor : "var(--text-dim)" }}
-              title={saved ? "Saved to your remedies" : "Save remedy"}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+              style={{
+                background: saved ? `${authorColor}15` : "rgba(255,255,255,0.7)",
+                color: saved ? authorColor : "var(--text-dim)",
+                border: `1px solid ${saved ? authorColor : "var(--glass-border)"}`,
+              }}
             >
               {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : saved ? (
+                <Check className="h-3.5 w-3.5" />
               ) : (
-                <Bookmark className="h-4 w-4" fill={saved ? authorColor : "none"} />
+                <Bookmark className="h-3.5 w-3.5" />
               )}
+              {saved ? "Saved" : "Save"}
             </button>
-            {r.source_url && (
-              <a
-                href={r.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-xl hover:bg-white/40 transition-colors"
-                style={{ color: "var(--text-dim)" }}
-                title="View original source"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            )}
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/40 transition-colors" style={{ color: "var(--text-dim)" }}>
               <X className="h-5 w-5" />
             </button>
@@ -472,6 +480,31 @@ export default function MateriaMedicaPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Remedy | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  async function quickSave(e: React.MouseEvent, remedy: Remedy) {
+    e.stopPropagation();
+    if (savedIds.has(remedy.id)) return;
+    setSavedIds((prev) => new Set(prev).add(remedy.id));
+    try {
+      const kingdomMap: Record<string, string> = { plant: "Plant", mineral: "Mineral", animal: "Animal", nosode: "Nosode" };
+      const res = await authedFetch("/api/saved-remedies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          remedy_name: remedy.name,
+          abbrev: remedy.remedy_abbrev || remedy.abbrev,
+          kingdom: kingdomMap[remedy.category] ?? "",
+          keynotes: remedy.intro ? [remedy.intro.slice(0, 200)] : [],
+        }),
+      });
+      const data = await res.json();
+      toast.success(data.alreadySaved ? "Already saved" : `${remedy.name} saved`);
+    } catch {
+      toast.error("Could not save");
+      setSavedIds((prev) => { const s = new Set(prev); s.delete(remedy.id); return s; });
+    }
+  }
 
   const PER_PAGE = 60;
   const activeAuthor = AUTHORS.find((a) => a.abbrev === author)!;
@@ -689,6 +722,8 @@ export default function MateriaMedicaPage() {
               remedy={remedy}
               authorColor={activeAuthor.color}
               onClick={() => setSelected(remedy)}
+              onSave={(e) => quickSave(e, remedy)}
+              saved={savedIds.has(remedy.id)}
             />
           ))}
         </div>

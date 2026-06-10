@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, BookOpen, RotateCcw, HelpCircle, GraduationCap,
   LogOut, MessageSquarePlus, History, Bookmark, FlaskConical,
-  FileText, Layers, Library, Settings, Scroll,
+  FileText, Layers, Library, Settings, Scroll, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store/authStore";
@@ -46,6 +46,7 @@ const navGroups: NavGroup[] = [
     label: "Tools",
     items: [
       { href: "/student/repertory", label: "Repertory", icon: Layers },
+      { href: "/student/take-case", label: "Take Case", icon: ClipboardList },
       { href: "/student/research", label: "Research Library", icon: Library },
     ],
   },

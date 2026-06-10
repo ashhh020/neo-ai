@@ -16,7 +16,7 @@ const STATS = [
   { value: "74,667", label: "Rubrics" },
   { value: "3,700+", label: "Remedies" },
   { value: "9", label: "Authors" },
-  { value: "161+", label: "Questions" },
+  { value: "1,508", label: "Aphorisms" },
 ];
 
 export function DHHero() {
@@ -45,13 +45,11 @@ export function DHHero() {
 
       <div className="max-w-7xl mx-auto px-4 w-full py-16 md:py-20 flex flex-col items-center">
 
-        {/* Badge — single line on mobile */}
-        <div className="flex items-center gap-2 rounded-full border px-3 py-1.5 mb-7 text-xs font-semibold max-w-full"
+        {/* Badge */}
+        <div className="flex items-center gap-2 rounded-full border px-3 py-1.5 mb-7 text-xs font-semibold"
           style={{ background: "rgba(78,115,223,0.06)", borderColor: "rgba(78,115,223,0.2)", color: "var(--accent-mineral)" }}>
           <Sparkles className="h-3 w-3 flex-shrink-0" />
-          <span className="truncate">Hahnemann AI · Qwen3 & Groq</span>
-          <span className="hidden sm:inline h-1 w-1 rounded-full flex-shrink-0" style={{ background: "var(--accent-mineral)" }} />
-          <span className="hidden sm:inline flex-shrink-0" style={{ color: "var(--text-dim)" }}>Early access</span>
+          <span>Hahnemann AI · Powered by Qwen3 &amp; Groq</span>
         </div>
 
         {/* Headline */}
