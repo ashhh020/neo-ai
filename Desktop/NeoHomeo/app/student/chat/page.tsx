@@ -305,7 +305,7 @@ export default function ChatPage() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--glass-border)", background: "rgba(255,255,255,0.2)", backdropFilter: "blur(20px)" }}>
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-lg hover:bg-white/40">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden md:flex p-1.5 rounded-lg hover:bg-white/40">
               <div className="w-4 h-3 flex flex-col justify-between">
                 {[0,1,2].map(i => <div key={i} className="h-0.5 rounded-full" style={{ background: "var(--text-dim)" }} />)}
               </div>
@@ -444,8 +444,11 @@ export default function ChatPage() {
                 <Send className="h-4 w-4 text-white" />
               </button>
             </div>
-            <p className="text-[10px] font-mono-neo text-center mt-2" style={{ color: "var(--text-dim)" }}>
+            <p className="text-[10px] font-mono-neo text-center mt-1.5 hidden sm:block" style={{ color: "var(--text-dim)" }}>
               Hahnemann AI · {currentMode.label} mode · Enter to send · Shift+Enter for new line
+            </p>
+            <p className="text-[10px] font-mono-neo text-center mt-1.5 sm:hidden" style={{ color: "var(--text-dim)" }}>
+              Enter to send · Shift+Enter for new line
             </p>
           </div>
         </div>

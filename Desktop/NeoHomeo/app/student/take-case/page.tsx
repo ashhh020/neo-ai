@@ -205,18 +205,18 @@ export default function TakeCasePage() {
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between mb-6 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <Link href="/student/saved-cases"
-            className="p-2 rounded-xl hover:bg-white/50 transition-colors"
+            className="p-2 rounded-xl hover:bg-white/50 transition-colors flex-shrink-0"
             style={{ color: "var(--text-dim)" }}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-2xl font-extrabold" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-extrabold truncate" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>
               Take Case
             </h1>
-            <p className="text-xs font-mono-neo mt-0.5" style={{ color: "var(--text-dim)" }}>
+            <p className="text-xs font-mono-neo mt-0.5 hidden sm:block" style={{ color: "var(--text-dim)" }}>
               Classical homeopathic case format
             </p>
           </div>
@@ -224,11 +224,12 @@ export default function TakeCasePage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-105 disabled:opacity-60 disabled:scale-100"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-105 disabled:opacity-60 disabled:scale-100 flex-shrink-0"
           style={{ background: "linear-gradient(135deg,#4e73df,#8A2BE2)" }}
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save Case
+          <span className="hidden sm:inline">Save Case</span>
+          <span className="sm:hidden">Save</span>
         </button>
       </div>
 
@@ -471,7 +472,7 @@ export default function TakeCasePage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-8 py-3 rounded-xl text-white font-bold shadow-lg transition-all hover:scale-105 disabled:opacity-60 disabled:scale-100"
+            className="flex items-center gap-2 w-full sm:w-auto justify-center px-8 py-3 rounded-xl text-white font-bold shadow-lg transition-all hover:scale-105 disabled:opacity-60 disabled:scale-100"
             style={{ background: "linear-gradient(135deg,#4e73df,#8A2BE2)" }}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
