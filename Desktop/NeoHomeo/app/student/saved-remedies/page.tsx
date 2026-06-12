@@ -83,7 +83,14 @@ export default function SavedRemediesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {remedies.filter(r => !search || r.remedy_name.toLowerCase().includes(search.toLowerCase()) || (r.kingdom ?? "").toLowerCase().includes(search.toLowerCase())).map((rem) => {
             const color = remedyColor(rem.remedy_name);
-            const keynotes = rem.keynotes ?? [];
+            const keynotes = (() => {
+              if (Array.isArray(rem.keynotes)) return rem.keynotes as string[];
+              if (typeof rem.keynotes === "string" && rem.keynotes) {
+                try { const p = JSON.parse(rem.keynotes); if (Array.isArray(p)) return p as string[]; } catch {}
+                return (rem.keynotes as string).split(/[·,\n]/).map((k: string) => k.trim()).filter(Boolean);
+              }
+              return [] as string[];
+            })();
             return (
               <div key={rem.id} className="shard p-5 group">
                 <div className="flex items-start justify-between mb-3">

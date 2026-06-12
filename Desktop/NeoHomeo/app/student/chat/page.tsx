@@ -285,10 +285,11 @@ export default function ChatPage() {
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: MODE_COLORS[t.mode] ?? "#6b7280" }} />
                   <p className="text-[11px] font-semibold truncate flex-1" style={{ color: "var(--text-obsidian)" }}>{t.title}</p>
-                  <button onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <div role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); deleteThread(t.id); } }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-pointer">
                     <Trash2 className="h-3 w-3 text-red-400" />
-                  </button>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Clock className="h-2.5 w-2.5" style={{ color: "var(--text-dim)" }} />
