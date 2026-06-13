@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Plus, ChevronDown, BookOpen, Layers, FlaskConical, Stethoscope, Library, Trash2, Clock } from "lucide-react";
 import { MessageRenderer } from "@/components/shared/MessageRenderer";
-import { useSearchParams } from "next/navigation";
 
 interface Message {
   id: string;
@@ -63,7 +62,6 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -86,10 +84,13 @@ export default function ChatPage() {
         setThreads(loaded);
 
         // If ?thread=X in URL, load that thread
-        const threadId = searchParams.get("thread");
-        if (threadId) {
-          const found = loaded.find(t => t.id === threadId);
-          if (found) loadThread(found);
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          const threadId = params.get("thread");
+          if (threadId) {
+            const found = loaded.find(t => t.id === threadId);
+            if (found) loadThread(found);
+          }
         }
       } finally {
         setThreadsLoading(false);

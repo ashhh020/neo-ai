@@ -83,13 +83,15 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     // Update thread: increment message_count and updated_at
-    await supabase.rpc("increment_message_count", { thread_id: threadId }).catch(() => {
+    try {
+      await supabase.rpc("increment_message_count", { thread_id: threadId });
+    } catch {
       // fallback if RPC doesn't exist
-      supabase.from("chat_threads")
+      await supabase.from("chat_threads")
         .update({ updated_at: new Date().toISOString() })
         .eq("id", threadId)
         .eq("user_id", user.id);
-    });
+    }
 
     // Simpler: just update updated_at directly
     await supabase
