@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "NeoHomeo",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev", "--port", "3456"],
+      "name": "neohomeo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 3456
     }
   ]

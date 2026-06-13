@@ -201,7 +201,7 @@ async function fetchHtmlUncached(url: string): Promise<string> {
       }
     );
     req.on("error", reject);
-    req.setTimeout(12000, () => { req.destroy(); reject(new Error("Timeout")); });
+    req.setTimeout(8000, () => { req.destroy(); reject(new Error("Timeout")); });
   });
 }
 
@@ -671,7 +671,7 @@ export async function searchLiveRepertory(
           if (matching.length === 0) return;
 
           // Collect unique page URLs needed
-          const pageUrls = [...new Set(matching.map(e => e.pageUrl))].slice(0, 20);
+          const pageUrls = [...new Set(matching.map(e => e.pageUrl))].slice(0, 10);
 
           // Fetch pages in parallel
           const pages = await Promise.all(

@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-
-async function makeClient() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
+import { getUserFromRequest, serviceClient as supabase } from "@/lib/supabase/api-auth";
 
 export async function GET(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("saved_remedies")
     .select("*")
     .eq("user_id", user.id)
@@ -27,15 +16,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { remedy_name, abbrev, kingdom, miasm, thermal, keynotes = [] } = await req.json();
   if (!remedy_name) return NextResponse.json({ error: "remedy_name required" }, { status: 400 });
 
-  // Avoid duplicates
-  const { data: existing } = await supabase
+  const { data: existing } = await (supabase as any)
     .from("saved_remedies")
     .select("id")
     .eq("user_id", user.id)
@@ -44,17 +31,9 @@ export async function POST(req: NextRequest) {
 
   if (existing) return NextResponse.json({ remedy: existing, alreadySaved: true });
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("saved_remedies")
-    .insert({
-      user_id: user.id,
-      remedy_name,
-      abbrev: abbrev ?? remedy_name,
-      kingdom: kingdom ?? "",
-      miasm: miasm ?? "",
-      thermal: thermal ?? "",
-      keynotes,
-    })
+    .insert({ user_id: user.id, remedy_name, abbrev: abbrev ?? remedy_name, kingdom: kingdom ?? "", miasm: miasm ?? "", thermal: thermal ?? "", keynotes })
     .select()
     .single();
 
@@ -63,15 +42,13 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = req.nextUrl;
-  const id = searchParams.get("id");
+  const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from("saved_remedies")
     .delete()
     .eq("id", id)

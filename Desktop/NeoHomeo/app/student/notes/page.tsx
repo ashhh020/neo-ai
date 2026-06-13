@@ -1,4 +1,5 @@
 "use client";
+import { authedFetch } from "@/lib/authed-fetch";
 
 import { useState, useEffect } from "react";
 import { Plus, Search, Trash2, FileText, BookOpen, Loader2, Edit2, Check, X } from "lucide-react";
@@ -44,7 +45,7 @@ export default function NotesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/notes");
+        const res = await authedFetch("/api/notes");
         if (res.ok) {
           const data = await res.json();
           setNotes(data.notes ?? []);
@@ -56,16 +57,19 @@ export default function NotesPage() {
     load();
   }, []);
 
-  const filtered = notes.filter((n) =>
-    n.title.toLowerCase().includes(search.toLowerCase()) ||
-    n.content.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = notes.filter((n) => {
+    const q = search.toLowerCase();
+    return !q ||
+      n.title.toLowerCase().includes(q) ||
+      n.content.toLowerCase().includes(q) ||
+      (n.tags ?? []).some(tag => tag.toLowerCase().includes(q));
+  });
 
   async function addNote() {
     if (!newTitle.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/notes", {
+      const res = await authedFetch("/api/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -81,7 +85,7 @@ export default function NotesPage() {
         setNewTitle(""); setNewContent(""); setNewTags(""); setShowNew(false);
         toast.success("Note saved");
         // Award XP
-        fetch("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activity: "note_created" }) });
+        authedFetch("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activity: "note_created" }) });
       }
     } finally {
       setSaving(false);
@@ -89,7 +93,7 @@ export default function NotesPage() {
   }
 
   async function saveEdit(id: string) {
-    const res = await fetch(`/api/notes?id=${id}`, {
+    const res = await authedFetch(`/api/notes?id=${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: editTitle, content: editContent }),
@@ -103,7 +107,7 @@ export default function NotesPage() {
   }
 
   async function deleteNote(id: string) {
-    await fetch(`/api/notes?id=${id}`, { method: "DELETE" });
+    await authedFetch(`/api/notes?id=${id}`, { method: "DELETE" });
     setNotes(notes.filter((n) => n.id !== id));
     toast.success("Note deleted");
   }

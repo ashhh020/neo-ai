@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-
-async function makeClient() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
+import { getUserFromRequest, serviceClient as supabase } from "@/lib/supabase/api-auth";
 
 export async function GET(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
     .from("saved_rubrics")
     .select("*")
     .eq("user_id", user.id)
@@ -27,15 +16,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { rubric_path, chapter, grade, source_abbrev, remedies } = await req.json();
+    const { rubric_path, chapter, grade, source_abbrev, remedies } = await req.json();
   if (!rubric_path) return NextResponse.json({ error: "rubric_path required" }, { status: 400 });
 
   // Check if already saved (avoid duplicates)
-  const { data: existing } = await supabase
+  const { data: existing } = await (supabase as any)
     .from("saved_rubrics")
     .select("id")
     .eq("user_id", user.id)
@@ -44,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   if (existing) return NextResponse.json({ rubric: existing, alreadySaved: true });
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("saved_rubrics")
     .insert({
       user_id: user.id,
@@ -62,15 +50,14 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = req.nextUrl;
+    const { searchParams } = req.nextUrl;
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from("saved_rubrics")
     .delete()
     .eq("id", id)

@@ -1,4 +1,5 @@
 "use client";
+import { authedFetch } from "@/lib/authed-fetch";
 
 import { useState, useEffect } from "react";
 import { MessageSquare, Search, ChevronRight, Clock, Trash2, Loader2 } from "lucide-react";
@@ -35,7 +36,7 @@ export default function ChatHistoryPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/chat");
+        const res = await authedFetch("/api/chat");
         if (res.ok) {
           const data = await res.json();
           setThreads(data.threads ?? []);
@@ -48,7 +49,7 @@ export default function ChatHistoryPage() {
   }, []);
 
   async function deleteThread(id: string) {
-    await fetch(`/api/chat?threadId=${id}`, { method: "DELETE" });
+    await authedFetch(`/api/chat?threadId=${id}`, { method: "DELETE" });
     setThreads((prev) => prev.filter((t) => t.id !== id));
     toast.success("Conversation deleted");
   }
@@ -80,7 +81,7 @@ export default function ChatHistoryPage() {
         <div className="shard p-12 text-center">
           <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-20" />
           <p className="font-bold" style={{ color: "var(--text-obsidian)" }}>No conversations yet</p>
-          <p className="text-sm mt-1" style={{ color: "var(--text-dim)" }}>Start chatting with Dr. Neo to see history here</p>
+          <p className="text-sm mt-1" style={{ color: "var(--text-dim)" }}>Start chatting with Hahnemann AI to see your conversation history</p>
         </div>
       )}
 

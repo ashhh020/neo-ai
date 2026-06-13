@@ -6,13 +6,6 @@ import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-const ROLE_REDIRECTS: Record<string, string> = {
-  student: "/student",
-  practitioner: "/doctor",
-  educator: "/patient",
-  admin: "/admin",
-};
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -27,13 +20,11 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     const supabase = createClient();
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
     if (err) { setError(err.message); setLoading(false); return; }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await (supabase as any).from("profiles").select("role").eq("id", data.user.id).single();
-    const role = (profile?.role as string) ?? "student";
-    router.push(ROLE_REDIRECTS[role] ?? "/student");
+    // Session is set; everyone lands on the student dashboard.
+    router.push("/student");
     router.refresh();
   }
 
@@ -61,7 +52,7 @@ export default function LoginPage() {
         </div>
 
         <h1 className="text-2xl font-extrabold mb-1" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>Welcome back</h1>
-        <p className="text-sm mb-6" style={{ color: "var(--text-dim)" }}>Sign in — you will be redirected based on your role</p>
+        <p className="text-sm mb-6" style={{ color: "var(--text-dim)" }}>Sign in to continue to your student dashboard</p>
 
         {error && (
           <div className="mb-4 p-3 rounded-2xl text-sm font-medium" style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>

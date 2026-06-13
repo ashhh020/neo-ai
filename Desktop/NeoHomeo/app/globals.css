@@ -152,24 +152,29 @@
     box-sizing: border-box;
   }
 
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', sans-serif;
     color: var(--text-obsidian);
     background-color: var(--silica-bg);
     background-image:
       radial-gradient(circle at 10% 20%, rgba(216, 230, 255, 0.5) 0%, transparent 45%),
-      radial-gradient(circle at 90% 80%, rgba(255, 210, 200, 0.35) 0%, transparent 45%),
+      radial-gradient(circle at 70% 80%, rgba(255, 210, 200, 0.25) 0%, transparent 35%),
       radial-gradient(circle at 50% 50%, rgba(200, 220, 255, 0.2) 0%, transparent 60%);
     background-attachment: fixed;
   }
 
-  /* Silica grain overlay */
+  /* Silica grain overlay — contained to viewport */
   body::before {
     content: "";
     position: fixed;
-    inset: -100%;
-    width: 300%;
-    height: 300%;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
     opacity: var(--grain-opacity);
     pointer-events: none;
@@ -185,6 +190,7 @@
 
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {

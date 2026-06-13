@@ -1,23 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-
-async function makeClient() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
+import { getUserFromRequest, serviceClient as supabase } from "@/lib/supabase/api-auth";
 
 export async function GET(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data, error } = await supabase
-    .from("study_notes")
+    .from("study_notes" as never)
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
@@ -27,14 +16,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { title, content, tags = [], color = "#8A2BE2" } = await req.json();
   if (!title) return NextResponse.json({ error: "title required" }, { status: 400 });
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("study_notes")
     .insert({ user_id: user.id, title, content: content ?? "", tags, color })
     .select()
@@ -45,12 +33,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = req.nextUrl;
-  const id = searchParams.get("id");
+  const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const body = await req.json();
@@ -60,7 +46,7 @@ export async function PATCH(req: NextRequest) {
   if (body.tags !== undefined) updates.tags = body.tags;
   if (body.color !== undefined) updates.color = body.color;
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("study_notes")
     .update(updates)
     .eq("id", id)
@@ -73,15 +59,13 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = req.nextUrl;
-  const id = searchParams.get("id");
+  const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from("study_notes")
     .delete()
     .eq("id", id)

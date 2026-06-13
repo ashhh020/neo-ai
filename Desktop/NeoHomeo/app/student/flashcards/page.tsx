@@ -1,4 +1,5 @@
 "use client";
+import { authedFetch } from "@/lib/authed-fetch";
 
 import { useState, useEffect } from "react";
 import { remedies } from "@/lib/data/remedies";
@@ -23,18 +24,89 @@ interface Flashcard {
   nextReviewDate: string;
 }
 
-// Generate base flashcards from remedies data
-const BASE_CARDS: Flashcard[] = remedies.slice(0, 20).map((r) => ({
-  id: r.id,
-  front: `What are the keynote mental symptoms of ${r.name}?`,
-  back: r.mind.slice(0, 4).join("\n• "),
-  remedy: r.name,
-  deck: "materia-medica",
+// Generate a rich flashcard deck from ALL remedies in the database.
+// Each remedy yields several card types (keynotes, mind, modalities) so a
+// 50-remedy dataset produces ~150 study cards instead of 20.
+const TODAY = new Date().toISOString().split("T")[0];
+
+function makeCard(
+  id: string,
+  remedy: string,
+  front: string,
+  back: string
+): Flashcard {
+  return {
+    id,
+    front,
+    back,
+    remedy,
+    deck: "materia-medica",
+    easeFactor: 2.5,
+    interval: 0,
+    repetitions: 0,
+    nextReviewDate: TODAY,
+  };
+}
+
+const BASE_CARDS: Flashcard[] = remedies.flatMap((r) => {
+  const cards: Flashcard[] = [];
+
+  if (r.keynotes?.length) {
+    cards.push(makeCard(`${r.id}_key`, r.name,
+      `What are the keynote characteristics of ${r.name}?`,
+      r.keynotes.slice(0, 5).join("\n• ")));
+  }
+  if (r.mind?.length) {
+    cards.push(makeCard(`${r.id}_mind`, r.name,
+      `Describe the mental / emotional picture of ${r.name}.`,
+      r.mind.slice(0, 5).join("\n• ")));
+  }
+  const worse = r.modalities?.worse ?? [];
+  const better = r.modalities?.better ?? [];
+  if (worse.length || better.length) {
+    cards.push(makeCard(`${r.id}_mod`, r.name,
+      `What are the modalities (worse / better) of ${r.name}?`,
+      `Worse: ${worse.join(", ") || "—"}\n• Better: ${better.join(", ") || "—"}`));
+  }
+  return cards;
+});
+
+// ── Organon deck: curated key aphorisms as Q&A flashcards ──
+const ORGANON_QA: Array<[string, string, string]> = [
+  ["§1", "What is the physician's highest and only calling?", "To restore the sick to health — to cure, as it is termed."],
+  ["§2", "What is the ideal of cure?", "Rapid, gentle and permanent restoration of health; removal of the whole disease in the shortest, most reliable, harmless way, on easily comprehensible principles."],
+  ["§5", "What helps the physician in the cure?", "The fundamental cause (exciting/maintaining), the miasm, and the most significant points of the patient's whole history."],
+  ["§6", "What does the unprejudiced observer perceive in disease?", "Nothing but the morbid signs and symptoms — the outwardly reflected picture of the inner essence of the disease."],
+  ["§7", "What guides the choice of remedy?", "The totality of the symptoms — the sole indication for the medicine to be chosen."],
+  ["§9", "What is the vital force in health?", "The spirit-like dynamis (vital force) animating the organism reigns in supreme sovereignty, keeping all parts in harmonious, healthy operation."],
+  ["§11", "What happens in disease, dynamically?", "The vital force is dynamically deranged by a morbific agent, producing abnormal sensations and functions we perceive as disease."],
+  ["§19", "How can medicines cure?", "Only by their power to alter the state of health — to produce certain symptoms (their artificial disease power)."],
+  ["§22", "Which symptoms must a curative medicine address?", "It must be able to produce, in healthy people, symptoms similar to those of the disease to be cured (similia similibus)."],
+  ["§24", "What is the only suitable therapeutic method?", "The homeopathic method — choosing the medicine able to produce a similar artificial disease."],
+  ["§28", "What is the law of cure called?", "Similia similibus curentur — let likes be cured by likes."],
+  ["§61", "What did the homeopathic principle reveal about palliation?", "Antipathic (opposite) treatment gives short relief then worsens the disease — proving the value of the opposite, homeopathic, approach."],
+  ["§63", "What are primary and secondary action?", "Primary action: the medicine's initial effect on the vital force. Secondary action: the vital force's opposite, counter-reaction restoring balance."],
+  ["§153", "Which symptoms are most important in remedy selection?", "The more striking, singular, uncommon and peculiar (characteristic) signs and symptoms are chiefly and almost solely to be considered."],
+  ["§246", "What governs repetition of the dose?", "A well-chosen dose may be repeated at suitable intervals — each time slightly modified (potency) — to speed cure without aggravation (LM/50-millesimal method)."],
+  ["§270", "What is potentisation (dynamisation)?", "By successive dilution with succussion/trituration the medicinal powers latent in a crude substance are developed and freed to act on the vital force."],
+];
+
+const ORGANON_CARDS: Flashcard[] = ORGANON_QA.map(([num, q, a]) => ({
+  id: `organon_${num.replace(/[§\s]/g, "")}`,
+  front: `Organon ${num} — ${q}`,
+  back: a,
+  remedy: `Organon ${num}`,
+  deck: "organon",
   easeFactor: 2.5,
   interval: 0,
   repetitions: 0,
-  nextReviewDate: new Date().toISOString().split("T")[0],
+  nextReviewDate: TODAY,
 }));
+
+const DECKS: Record<string, { label: string; cards: Flashcard[] }> = {
+  "materia-medica": { label: "Materia Medica", cards: BASE_CARDS },
+  organon: { label: "Organon", cards: ORGANON_CARDS },
+};
 
 const GRADE_BUTTONS: Array<{ grade: SM2Grade; label: string; color: string; desc: string }> = [
   { grade: 0, label: "Again", color: "#E11D48", desc: "< 1 min" },
@@ -44,25 +116,33 @@ const GRADE_BUTTONS: Array<{ grade: SM2Grade; label: string; color: string; desc
 ];
 
 export default function FlashcardsPage() {
-  const [cards, setCards] = useState<Flashcard[]>(BASE_CARDS);
+  const [deck, setDeck] = useState<string>("materia-medica");
+  const [cards, setCards] = useState<Flashcard[]>(DECKS["materia-medica"].cards);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [sessionStats, setSessionStats] = useState({ reviewed: 0, correct: 0 });
   const [sessionDone, setSessionDone] = useState(false);
 
-  // Load SM2 state from DB on mount
+  // Load SM2 state from DB whenever the active deck changes
   useEffect(() => {
+    let cancelled = false;
     async function loadSM2() {
+      setLoading(true);
+      setCurrentIndex(0);
+      setFlipped(false);
+      setSessionDone(false);
+      setSessionStats({ reviewed: 0, correct: 0 });
+      const base = DECKS[deck].cards;
       try {
-        const res = await fetch("/api/flashcards?deck=materia-medica");
-        if (res.ok) {
+        const res = await authedFetch(`/api/flashcards?deck=${deck}`);
+        if (res.ok && !cancelled) {
           const data = await res.json();
           const reviews: Record<string, { ease_factor: number; interval_days: number; repetitions: number; next_review_at: string }> = {};
           for (const r of (data.reviews ?? [])) {
             reviews[r.card_id] = r;
           }
-          setCards((prev) => prev.map((c) => {
+          setCards(base.map((c) => {
             const saved = reviews[c.id];
             if (!saved) return c;
             return {
@@ -73,23 +153,38 @@ export default function FlashcardsPage() {
               nextReviewDate: saved.next_review_at.split("T")[0],
             };
           }));
+        } else if (!cancelled) {
+          setCards(base);
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     loadSM2();
-  }, []);
+    return () => { cancelled = true; };
+  }, [deck]);
 
   const dueCards = cards.filter((c) => c.nextReviewDate <= new Date().toISOString().split("T")[0]);
-  const activeCards = dueCards.length > 0 ? dueCards : cards;
+  const activeCards = dueCards;
   const currentCard = activeCards[currentIndex];
   const progress = activeCards.length > 0 ? (currentIndex / activeCards.length) * 100 : 0;
+
+  // Spacebar to flip card (L6)
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === " " && !sessionDone && currentCard) {
+        e.preventDefault();
+        setFlipped(f => !f);
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [sessionDone, currentCard]);
 
   async function handleGrade(grade: SM2Grade) {
     const updated = sm2(currentCard, grade);
     // Save to DB
-    fetch("/api/flashcards", {
+    authedFetch("/api/flashcards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -111,7 +206,7 @@ export default function FlashcardsPage() {
     } else {
       setSessionDone(true);
       // Award XP for flashcard session
-      fetch("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activity: "flashcard_session" }) });
+      authedFetch("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activity: "flashcard_session" }) });
     }
   }
 
@@ -126,25 +221,32 @@ export default function FlashcardsPage() {
   if (sessionDone) {
     const accuracy = sessionStats.reviewed > 0 ? Math.round((sessionStats.correct / sessionStats.reviewed) * 100) : 0;
     return (
-      <div className="p-6 max-w-lg mx-auto">
-        <div className="text-center py-16">
-          <div className="text-5xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold font-poppins mb-2">Session Complete!</h2>
-          <p className="text-muted-foreground mb-6">You reviewed {sessionStats.reviewed} cards with {accuracy}% accuracy</p>
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <Card><CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold font-poppins">{sessionStats.reviewed}</p>
-              <p className="text-xs text-muted-foreground">Cards Reviewed</p>
-            </CardContent></Card>
-            <Card><CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold font-poppins" style={{ color: "#5BB85A" }}>{accuracy}%</p>
-              <p className="text-xs text-muted-foreground">Accuracy</p>
-            </CardContent></Card>
+      <div className="p-6 max-w-lg mx-auto space-y-5">
+        <div className="shard p-8 text-center space-y-3">
+          <div className="text-5xl mb-2">🎉</div>
+          <h2 className="text-2xl font-extrabold" style={{ color: "var(--text-obsidian)", letterSpacing: "-0.03em" }}>Session Complete!</h2>
+          <p className="text-sm" style={{ color: "var(--text-dim)" }}>You reviewed {sessionStats.reviewed} cards with {accuracy}% accuracy</p>
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="shard p-4 text-center">
+              <p className="text-2xl font-black" style={{ color: "var(--text-obsidian)" }}>{sessionStats.reviewed}</p>
+              <p className="text-xs font-mono-neo" style={{ color: "var(--text-dim)" }}>Cards Reviewed</p>
+            </div>
+            <div className="shard p-4 text-center">
+              <p className="text-2xl font-black" style={{ color: accuracy >= 70 ? "#16a34a" : "#F59E0B" }}>{accuracy}%</p>
+              <p className="text-xs font-mono-neo" style={{ color: "var(--text-dim)" }}>Accuracy</p>
+            </div>
           </div>
-          <Button onClick={() => { setCurrentIndex(0); setFlipped(false); setSessionDone(false); setSessionStats({ reviewed: 0, correct: 0 }); }}
-            className="gap-2 gradient-brand text-white border-0">
+        </div>
+        <div className="flex gap-3">
+          <button onClick={() => { setCurrentIndex(0); setFlipped(false); setSessionDone(false); setSessionStats({ reviewed: 0, correct: 0 }); }}
+            className="flex-1 h-11 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 gradient-mineral">
             <RotateCcw className="h-4 w-4" /> Review Again
-          </Button>
+          </button>
+          <a href="/student"
+            className="flex-1 h-11 rounded-2xl font-bold text-sm flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.05)", color: "var(--text-dim)" }}>
+            Dashboard
+          </a>
         </div>
       </div>
     );
@@ -152,10 +254,29 @@ export default function FlashcardsPage() {
 
   if (!currentCard) {
     return (
-      <div className="p-6 max-w-lg mx-auto text-center py-24">
-        <div className="text-5xl mb-4">✅</div>
-        <h2 className="text-xl font-bold mb-2">All caught up!</h2>
-        <p className="text-muted-foreground">No cards due for review today.</p>
+      <div className="p-6 max-w-lg mx-auto">
+        <div className="shard p-12 text-center space-y-4">
+          <div className="text-5xl">✅</div>
+          <h2 className="text-xl font-extrabold" style={{ color: "var(--text-obsidian)" }}>All caught up!</h2>
+          <p className="text-sm" style={{ color: "var(--text-dim)" }}>No cards due for review today. Come back tomorrow!</p>
+          <div className="flex gap-3 justify-center mt-2">
+            <button onClick={() => {
+              // Allow reviewing all cards even when none are due
+              setCards(DECKS[deck].cards);
+              setCurrentIndex(0);
+              setFlipped(false);
+              setSessionStats({ reviewed: 0, correct: 0 });
+            }}
+              className="px-5 py-2.5 rounded-2xl text-white font-semibold text-sm gradient-mineral">
+              Review all cards anyway
+            </button>
+            <a href="/student"
+              className="px-5 py-2.5 rounded-2xl font-semibold text-sm flex items-center"
+              style={{ background: "rgba(0,0,0,0.05)", color: "var(--text-dim)" }}>
+              Dashboard
+            </a>
+          </div>
+        </div>
       </div>
     );
   }
@@ -163,9 +284,26 @@ export default function FlashcardsPage() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-3">
           <h1 className="text-2xl font-bold font-poppins">Flashcards</h1>
           <Badge variant="secondary">{currentIndex + 1} / {activeCards.length}</Badge>
+        </div>
+        {/* Deck selector */}
+        <div className="flex gap-2 mb-3">
+          {Object.entries(DECKS).map(([key, d]) => (
+            <button
+              key={key}
+              onClick={() => setDeck(key)}
+              className={cn(
+                "px-4 py-1.5 rounded-full text-xs font-semibold transition-all border",
+                deck === key
+                  ? "bg-primary text-primary-foreground border-transparent"
+                  : "bg-transparent text-muted-foreground border-border hover:bg-muted"
+              )}
+            >
+              {d.label} <span className="opacity-60">· {d.cards.length}</span>
+            </button>
+          ))}
         </div>
         <Progress value={progress} className="h-2" />
         <div className="flex justify-between text-xs text-muted-foreground mt-1">
@@ -205,7 +343,7 @@ export default function FlashcardsPage() {
               <div className="text-left w-full">
                 {currentCard.back.split("\n").map((line, i) => (
                   <p key={i} className="text-sm text-muted-foreground mb-1.5">
-                    {line.startsWith("•") ? line : `• ${line}`}
+                    {line.startsWith("•") || line.startsWith("-") ? line.replace(/^[-•]\s*/, "• ") : `• ${line}`}
                   </p>
                 ))}
               </div>

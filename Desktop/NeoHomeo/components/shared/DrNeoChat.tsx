@@ -5,12 +5,13 @@ import { Send, Loader2, AlertTriangle, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AIBadge } from "./AIBadge";
+import { MessageRenderer } from "./MessageRenderer";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "@/types";
 import { generateId } from "@/lib/utils";
 
 interface DrNeoChatProps {
-  mode: "patient" | "doctor" | "student";
+  mode: "patient" | "doctor" | "student" | "organon" | "materia-medica" | "general" | "repertory" | "clinical" | "research";
   caseData?: unknown;
   initialMessage?: string;
   placeholder?: string;
@@ -33,6 +34,7 @@ export function DrNeoChat({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastMsgRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -51,7 +53,15 @@ export function DrNeoChat({
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    // New assistant answer → align its top so the reader starts at the
+    // beginning and scrolls down. User's own message → jump to bottom.
+    if (last.role === "assistant") {
+      lastMsgRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   async function sendMessage(text: string, isInit = false) {
@@ -83,60 +93,35 @@ export function DrNeoChat({
     ]);
 
     try {
+      // Build the last user message to send
+      const userText = isInit ? "Hello, introduce yourself and what you can help with." : text;
+
       const response = await fetch("/api/dr-neo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: isInit
-            ? [{ role: "user", content: "Hello, I'd like to start my assessment." }]
-            : updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+          message: userText,
           mode,
           caseData,
+          // Send recent history (excluding the optimistic assistant placeholder)
+          history: updatedMessages
+            .filter((m) => m.content && m.role !== "assistant" || m.content)
+            .slice(-10)
+            .map((m) => ({ role: m.role, content: m.content })),
         }),
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to get response");
+        const err = await response.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || "Failed to get response");
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n").filter((l) => l.startsWith("data: "));
-
-          for (const line of lines) {
-            const data = line.slice(6);
-            if (data === "[DONE]") break;
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.text) {
-                fullText += parsed.text;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, content: fullText, isStreaming: true }
-                      : m
-                  )
-                );
-              }
-            } catch {
-              // ignore parse errors in stream
-            }
-          }
-        }
-      }
+      const data = await response.json();
+      const fullText: string = data.reply ?? "No response generated.";
 
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === assistantId ? { ...m, isStreaming: false } : m
+          m.id === assistantId ? { ...m, content: fullText, isStreaming: false } : m
         )
       );
 
@@ -167,20 +152,27 @@ export function DrNeoChat({
     }
   }
 
-  const modeColors = {
+  const modeColors: Record<string, string> = {
     patient: "#4ECDC4",
     doctor: "#2A5C8D",
     student: "#8A2BE2",
+    organon: "#4e73df",
+    "materia-medica": "#16a34a",
+    general: "#8A2BE2",
+    repertory: "#e67e22",
+    clinical: "#e74c3c",
+    research: "#9b59b6",
   };
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-        {messages.map((message) => (
+        {messages.map((message, idx) => (
           <div
             key={message.id}
-            className={cn("flex gap-3", message.role === "user" ? "justify-end" : "justify-start")}
+            ref={idx === messages.length - 1 ? lastMsgRef : undefined}
+            className={cn("flex gap-3 scroll-mt-4", message.role === "user" ? "justify-end" : "justify-start")}
           >
             {message.role === "assistant" && (
               <div
@@ -192,15 +184,22 @@ export function DrNeoChat({
             )}
             <div
               className={cn(
-                "max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                "rounded-2xl px-4 py-3 text-sm leading-relaxed",
                 message.role === "user"
-                  ? "bg-primary text-primary-foreground ml-auto"
-                  : "bg-muted text-foreground"
+                  ? "max-w-[75%] bg-primary text-primary-foreground ml-auto"
+                  : "max-w-[85%] bg-muted text-foreground"
               )}
             >
-              {message.content}
-              {message.isStreaming && (
-                <span className="inline-block w-1 h-4 bg-current animate-pulse ml-1" />
+              {message.role === "assistant" ? (
+                <>
+                  <MessageRenderer content={message.content || (message.isStreaming ? "…" : "")} />
+                  {message.isStreaming && (
+                    <span className="inline-block w-1.5 h-3.5 rounded-sm animate-pulse ml-1 align-middle"
+                      style={{ background: modeColors[mode] ?? "#888" }} />
+                  )}
+                </>
+              ) : (
+                message.content
               )}
             </div>
           </div>

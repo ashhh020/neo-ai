@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Search, BookOpen, X, ChevronRight, Leaf, Gem, Shell,
-  FlaskConical, Loader2, ExternalLink, AlertCircle,
+  FlaskConical, Loader2, AlertCircle, Bookmark, Check,
 } from "lucide-react";
+import { authedFetch } from "@/lib/authed-fetch";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,6 +73,42 @@ const AUTHORS = [
     color: "#ef4444",
     badge: "217 remedies",
   },
+  {
+    abbrev: "phatak",
+    label: "Phatak",
+    fullname: "S.R. Phatak",
+    title: "Materia Medica of Homoeopathic Medicines",
+    year: 1977,
+    color: "#0891b2",
+    badge: "407 remedies",
+  },
+  {
+    abbrev: "murphy",
+    label: "Murphy",
+    fullname: "Robin Murphy",
+    title: "Lotus Materia Medica",
+    year: 2002,
+    color: "#db2777",
+    badge: "729 remedies",
+  },
+  {
+    abbrev: "patil",
+    label: "Patil",
+    fullname: "Dr. J.D. Patil",
+    title: "Textbook of Applied Materia Medica",
+    year: 2007,
+    color: "#7c3aed",
+    badge: "180 remedies",
+  },
+  {
+    abbrev: "choudhuri",
+    label: "Choudhuri",
+    fullname: "N.M. Choudhuri",
+    title: "A Study on Materia Medica",
+    year: 1929,
+    color: "#65a30d",
+    badge: "176 remedies",
+  },
 ] as const;
 
 type AuthorAbbrev = typeof AUTHORS[number]["abbrev"];
@@ -85,16 +123,84 @@ const CATEGORY_META: Record<string, { color: string; bg: string; icon: React.Rea
 };
 
 const SECTION_PRIORITY = [
-  "Introduction", "Full Text",
-  "Mind", "Mental", "Head", "Eyes", "Ears", "Nose", "Face", "Mouth",
-  "Tongue", "Throat", "Stomach", "Abdomen", "Rectum", "Stool",
-  "Urinary", "Urine", "Male", "Female", "Respiratory", "Chest",
-  "Heart", "Back", "Extremities", "Sleep", "Fever", "Skin",
-  "Modalities", "Dose", "Relations", "Complementary",
-  "Clinical", "Characteristics",
+  "Introduction", "Full Text", "Keynotes", "Generalities", "Generals",
+  "Worse", "Better", "Modalities",
+  "Mind", "Mental", "Head", "Vertigo", "Eyes", "Ears", "Nose", "Face", "Mouth",
+  "Teeth", "Tongue", "Taste", "Throat", "Stomach", "Appetite", "Abdomen",
+  "Rectum", "Stool", "Urinary", "Urine", "Bladder", "Male", "Female",
+  "Respiratory", "Larynx", "Cough", "Chest", "Heart", "Pulse",
+  "Neck and back", "Neck", "Back", "Extremities", "Limbs", "Sleep", "Dreams",
+  "Fever", "Chill", "Perspiration", "Skin",
+  "Dose", "Relations", "Related", "Complementary", "Clinical", "Characteristics",
 ];
 
-function sortSections(sections: Record<string, string>) {
+// Known section/body-part headers used to split a "Full Text" blob.
+const HEADER_WORDS = [
+  "Mind", "Mental", "Sensorium", "Head", "Vertigo", "Eyes", "Eye", "Vision",
+  "Ears", "Ear", "Hearing", "Nose", "Smell", "Face", "Mouth", "Teeth", "Tongue",
+  "Taste", "Throat", "Stomach", "Appetite", "Abdomen", "Stool", "Rectum", "Anus",
+  "Urine", "Urinary", "Bladder", "Kidneys", "Prostate", "Male", "Female",
+  "Genitalia", "Sexual", "Menses", "Respiratory", "Larynx", "Voice", "Cough",
+  "Expectoration", "Chest", "Lungs", "Heart", "Pulse", "Circulation", "Neck",
+  "Back", "Extremities", "Limbs", "Hands", "Feet", "Joints", "Sleep", "Dreams",
+  "Fever", "Chill", "Heat", "Perspiration", "Sweat", "Skin", "Generalities",
+  "Generals", "Modalities", "Aggravation", "Amelioration", "Worse", "Better",
+  "Relationship", "Relations", "Compare", "Complementary", "Antidotes",
+  "Antidote", "Compatible", "Incompatible", "Dose", "Dosage", "Clinical",
+  "Characteristics", "Causation", "Nerves", "Bones", "Glands", "Locality",
+];
+
+const HEADER_RE = new RegExp(
+  `(?:^|\\n|\\r|\\.\\s|\\s{2,})(${HEADER_WORDS.join("|")})\\s*[.:]?\\s*(?:--|—|–|\\.-)\\s*`,
+  "g"
+);
+
+// Remove the site boilerplate ("Materia Medica by X … read the full book here.")
+// and any "Remedia Homeopathy" store advertising that may have been scraped in.
+function cleanFullText(raw: string): string {
+  let t = raw.replace(/\r/g, "");
+  const cut = t.search(/read the full book here\.?/i);
+  if (cut !== -1) t = t.slice(cut + "read the full book here.".length);
+  // Strip store ads (defense-in-depth; the DB is already cleaned)
+  t = t.replace(/[^\n.]*\bis available at\b[\s\S]*$/i, "");
+  t = t.replace(/\s*more information and order at\s+Remedia\s+Hom[a-z]*\s*/gi, "\n\n");
+  t = t.replace(/[^\n]*Remedia\s+Hom[a-z]*[^\n]*/gi, "");
+  t = t.replace(/\n?\s*5,?500 homeopathic remedies[\s\S]*$/i, "");
+  return t.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// Split a single "Full Text" blob into [heading, content] sections when the
+// classic "Mind.-- … Head.-- …" structure is present. Falls back to one block.
+function splitFullText(raw: string): Array<[string, string]> {
+  const text = cleanFullText(raw);
+  const matches = [...text.matchAll(HEADER_RE)];
+  if (matches.length < 3) {
+    return [["Full Text", text]];
+  }
+  const out: Array<[string, string]> = [];
+  const firstStart = matches[0].index ?? 0;
+  const lead = text.slice(0, firstStart).trim();
+  if (lead.length > 20) out.push(["Keynotes", lead]);
+
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    const heading = m[1];
+    const contentStart = (m.index ?? 0) + m[0].length;
+    const contentEnd = i + 1 < matches.length ? (matches[i + 1].index ?? text.length) : text.length;
+    const content = text.slice(contentStart, contentEnd).trim();
+    if (content.length > 0) out.push([heading, content]);
+  }
+  return out;
+}
+
+function buildSections(sections: Record<string, string> | undefined): Array<[string, string]> {
+  if (!sections) return [];
+  const keys = Object.keys(sections);
+  // Data from materiamedica.info stores everything under one "Full Text" key.
+  if (keys.length === 1 && (keys[0] === "Full Text" || keys[0] === "Introduction")) {
+    return splitFullText(sections[keys[0]]);
+  }
+  // Already-structured data: order by priority.
   const ordered: Array<[string, string]> = [];
   for (const key of SECTION_PRIORITY) {
     if (sections[key]) ordered.push([key, sections[key]]);
@@ -111,21 +217,25 @@ function RemedyCard({
   remedy,
   authorColor,
   onClick,
+  onSave,
+  saved,
 }: {
   remedy: Remedy;
   authorColor: string;
   onClick: () => void;
+  onSave: (e: React.MouseEvent) => void;
+  saved: boolean;
 }) {
   const meta = CATEGORY_META[remedy.category] ?? CATEGORY_META.plant;
   return (
-    <button
-      onClick={onClick}
-      className="text-left w-full rounded-2xl p-4 transition-all hover:scale-[1.01] active:scale-[0.99]"
+    <div
+      className="relative rounded-2xl p-4 transition-all hover:scale-[1.01] cursor-pointer"
       style={{
         background: "rgba(255,255,255,0.55)",
         border: "1px solid var(--glass-border)",
         backdropFilter: "blur(12px)",
       }}
+      onClick={onClick}
     >
       <div className="flex items-start justify-between mb-1.5">
         <div className="flex-1 min-w-0">
@@ -138,19 +248,29 @@ function RemedyCard({
             </p>
           )}
         </div>
-        <span
-          className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ml-2 flex-shrink-0"
-          style={{ background: meta.bg, color: meta.color }}
-        >
-          {meta.icon}{remedy.category}
-        </span>
+        <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+          <span
+            className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ background: meta.bg, color: meta.color }}
+          >
+            {meta.icon}{remedy.category}
+          </span>
+          <button
+            onClick={onSave}
+            className="p-1 rounded-lg hover:bg-white/60 transition-colors"
+            style={{ color: saved ? authorColor : "var(--text-dim)" }}
+            title={saved ? "Saved" : "Save remedy"}
+          >
+            <Bookmark className="h-3.5 w-3.5" fill={saved ? authorColor : "none"} />
+          </button>
+        </div>
       </div>
       {remedy.intro && (
         <p className="text-[11px] leading-relaxed line-clamp-2" style={{ color: "var(--text-dim)" }}>
           {remedy.intro}
         </p>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -168,7 +288,38 @@ function RemedyDetail({
   const [detail, setDetail] = useState<Remedy | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const meta = CATEGORY_META[remedy.category] ?? CATEGORY_META.plant;
+
+  const kingdomMap: Record<string, string> = {
+    plant: "Plant", mineral: "Mineral", animal: "Animal", nosode: "Nosode",
+  };
+
+  async function handleSave() {
+    if (saving || saved) return;
+    setSaving(true);
+    try {
+      const res = await authedFetch("/api/saved-remedies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          remedy_name: remedy.name,
+          abbrev: remedy.remedy_abbrev || remedy.name,
+          kingdom: kingdomMap[remedy.category] ?? "",
+          keynotes: remedy.intro ? [remedy.intro.slice(0, 200)] : [],
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      const data = await res.json();
+      setSaved(true);
+      toast.success(data.alreadySaved ? "Already in your saved remedies" : `${remedy.name} saved`);
+    } catch {
+      toast.error("Could not save remedy");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/mm?id=${encodeURIComponent(remedy.id)}`)
@@ -179,7 +330,7 @@ function RemedyDetail({
   }, [remedy.id]);
 
   const r = detail ?? remedy;
-  const sections = r.sections ? sortSections(r.sections) : [];
+  const sections = buildSections(r.sections);
 
   return (
     <div
@@ -214,18 +365,25 @@ function RemedyDetail({
             </p>
           </div>
           <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-            {r.source_url && (
-              <a
-                href={r.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-xl hover:bg-white/40 transition-colors"
-                style={{ color: "var(--text-dim)" }}
-                title="View original source"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            )}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+              style={{
+                background: saved ? `${authorColor}15` : "rgba(255,255,255,0.7)",
+                color: saved ? authorColor : "var(--text-dim)",
+                border: `1px solid ${saved ? authorColor : "var(--glass-border)"}`,
+              }}
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : saved ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Bookmark className="h-3.5 w-3.5" />
+              )}
+              {saved ? "Saved" : "Save"}
+            </button>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/40 transition-colors" style={{ color: "var(--text-dim)" }}>
               <X className="h-5 w-5" />
             </button>
@@ -322,6 +480,31 @@ export default function MateriaMedicaPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Remedy | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  async function quickSave(e: React.MouseEvent, remedy: Remedy) {
+    e.stopPropagation();
+    if (savedIds.has(remedy.id)) return;
+    setSavedIds((prev) => new Set(prev).add(remedy.id));
+    try {
+      const kingdomMap: Record<string, string> = { plant: "Plant", mineral: "Mineral", animal: "Animal", nosode: "Nosode" };
+      const res = await authedFetch("/api/saved-remedies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          remedy_name: remedy.name,
+          abbrev: remedy.remedy_abbrev || remedy.abbrev,
+          kingdom: kingdomMap[remedy.category] ?? "",
+          keynotes: remedy.intro ? [remedy.intro.slice(0, 200)] : [],
+        }),
+      });
+      const data = await res.json();
+      toast.success(data.alreadySaved ? "Already saved" : `${remedy.name} saved`);
+    } catch {
+      toast.error("Could not save");
+      setSavedIds((prev) => { const s = new Set(prev); s.delete(remedy.id); return s; });
+    }
+  }
 
   const PER_PAGE = 60;
   const activeAuthor = AUTHORS.find((a) => a.abbrev === author)!;
@@ -403,7 +586,7 @@ export default function MateriaMedicaPage() {
           Materia Medica
         </h1>
         <p className="text-sm font-mono-neo" style={{ color: "var(--text-dim)" }}>
-          Public domain · 5 classical authors · ~2,100 remedies
+          9 classical authors · 3,700+ remedies
         </p>
       </div>
 
@@ -539,6 +722,8 @@ export default function MateriaMedicaPage() {
               remedy={remedy}
               authorColor={activeAuthor.color}
               onClick={() => setSelected(remedy)}
+              onSave={(e) => quickSave(e, remedy)}
+              saved={savedIds.has(remedy.id)}
             />
           ))}
         </div>

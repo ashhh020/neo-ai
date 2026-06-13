@@ -5,12 +5,14 @@ import { AIBadge } from "@/components/shared/AIBadge";
 import { GraduationCap } from "lucide-react";
 
 const QUICK_PROMPTS = [
-  "Explain Sulphur mentals in detail",
-  "Compare Pulsatilla vs Natrum Mur",
-  "Quiz me on Phosphorus",
-  "What is the sycotic miasm?",
-  "Explain MIND > Grief rubric",
-  "Describe Lycopodium constitution",
+  "Explain §1 of the Organon in clinical terms",
+  "What is the vital force according to Hahnemann?",
+  "Explain the Law of Similars with an example",
+  "What does §153 teach about case-taking?",
+  "Difference between 5th and 6th edition of Organon",
+  "What are the three miasms Hahnemann described?",
+  "Explain primary and secondary action (§63)",
+  "What is the minimum dose principle?",
 ];
 
 export default function AITutorPage() {
@@ -25,32 +27,32 @@ export default function AITutorPage() {
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold">Dr. Neo · AI Tutor</span>
+            <span className="font-semibold">Organon Tutor · Hahnemann AI</span>
             <AIBadge />
           </div>
-          <p className="text-xs text-muted-foreground">Socratic teaching mode · Classical homeopathy</p>
+          <p className="text-xs text-muted-foreground">Hahnemann · Kent · Roberts · Organon 6th &amp; 5th Ed.</p>
         </div>
         <div className="ml-auto text-xs text-muted-foreground bg-muted/50 rounded-lg px-2.5 py-1">
-          Powered by Gemini
+          Powered by Qwen3 · Groq
         </div>
       </div>
 
       <DrNeoChat
-        mode="student"
-        placeholder="Ask anything about homeopathy..."
+        mode="organon"
+        placeholder="Ask about any aphorism, principle, or concept from the Organon…"
         quickPrompts={QUICK_PROMPTS}
-        initialMessage="Welcome to your AI tutoring session! I'm Dr. Neo in Socratic tutor mode.
+        initialMessage="Welcome to the **Organon Tutor**. I'm **Hahnemann AI** in Organon expert mode.
 
-I'll guide your learning through questions, examples, and classical references rather than just giving you answers. This helps build deeper understanding.
+I teach from Hahnemann's *Organon of Medicine* (6th & 5th editions), Kent's *Lectures on Homeopathic Philosophy*, and Roberts' *Art of Cure*.
 
-**What would you like to explore today?**
-- A specific remedy (e.g., &quot;Tell me about Sulphur&quot;)
-- Compare remedies (e.g., &quot;Compare Pulsatilla and Natrum Mur&quot;)
-- A quiz on any topic (e.g., &quot;Quiz me on Phosphorus&quot;)
-- Repertory and case-taking concepts
-- Organon principles
+**What shall we explore?**
+- Any aphorism by number (e.g., *'Explain §153'*)
+- Core concepts (e.g., *'What is the vital force?'*)
+- Compare editions (e.g., *'How does §246 differ between 5th and 6th edition?'*)
+- Clinical application (e.g., *'How does §63 apply when choosing potency?'*)
+- Philosophy (e.g., *'Explain the miasm theory'*)
 
-*Note: I'll cite classical sources like Kent's Lectures, Boericke, and the Organon throughout.*"
+I'll cite the relevant aphorism numbers throughout and connect theory to clinical practice."
         className="flex-1"
       />
     </div>

@@ -1,25 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-
-async function makeClient() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-}
+import { getUserFromRequest, serviceClient as supabase } from "@/lib/supabase/api-auth";
 
 export async function GET(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = req.nextUrl;
+    const { searchParams } = req.nextUrl;
   const limit = parseInt(searchParams.get("limit") ?? "20", 10);
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("quiz_results")
     .select("id, topic, score, total, completed_at")
     .eq("user_id", user.id)
@@ -30,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   // Compute per-topic averages
   const byTopic: Record<string, { total: number; sum: number; count: number }> = {};
-  (data ?? []).forEach((r) => {
+  (data ?? []).forEach((r: { topic?: string; score: number; total: number }) => {
     const t = r.topic ?? "general";
     if (!byTopic[t]) byTopic[t] = { total: 0, sum: 0, count: 0 };
     byTopic[t].sum += (r.score / r.total) * 100;
@@ -47,16 +36,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await makeClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { topic, score, total, answers = [] } = await req.json();
+    const { topic, score, total, answers = [] } = await req.json();
   if (score === undefined || !total) {
     return NextResponse.json({ error: "score and total required" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("quiz_results")
     .insert({ user_id: user.id, topic: topic ?? "general", score, total, answers })
     .select()

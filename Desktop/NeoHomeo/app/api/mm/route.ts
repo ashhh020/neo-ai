@@ -7,7 +7,7 @@ const supabase = createClient(
 );
 
 // Supported author abbreviations
-const VALID_AUTHORS = ["allen", "boericke", "kent", "clarke", "bogsk", "heringc"] as const;
+const VALID_AUTHORS = ["allen", "boericke", "kent", "clarke", "bogsk", "heringc", "phatak", "murphy", "patil", "choudhuri"] as const;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -29,16 +29,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ remedy: data });
   }
 
-  // Author stats (counts per author)
+  // Author stats (exact counts per author — head requests avoid the 1000-row cap)
   if (searchParams.get("stats") === "1") {
-    const { data, error } = await supabase
-      .from("mm_remedies" as never)
-      .select("abbrev");
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const counts: Record<string, number> = {};
-    for (const row of (data as { abbrev: string }[])) {
-      counts[row.abbrev] = (counts[row.abbrev] ?? 0) + 1;
-    }
+    await Promise.all(
+      VALID_AUTHORS.map(async (a) => {
+        const { count } = await supabase
+          .from("mm_remedies" as never)
+          .select("id", { count: "exact", head: true })
+          .eq("abbrev", a);
+        if (count && count > 0) counts[a] = count;
+      })
+    );
     return NextResponse.json({ counts });
   }
 

@@ -5,13 +5,18 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, BookOpen, RotateCcw, HelpCircle, GraduationCap,
   LogOut, MessageSquarePlus, History, Bookmark, FlaskConical,
-  FileText, Layers, Library, Settings,
+  FileText, Layers, Library, Settings, Scroll, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store/authStore";
+import { useUIStore } from "@/lib/store/uiStore";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 
-const navGroups = [
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; isAI?: boolean };
+type NavGroup = { label: string; items: NavItem[] };
+
+const navGroups: NavGroup[] = [
   {
     label: "Chat",
     items: [
@@ -20,14 +25,29 @@ const navGroups = [
     ],
   },
   {
-    label: "Study",
+    label: "Learn",
     items: [
       { href: "/student", label: "Dashboard", icon: LayoutDashboard },
       { href: "/student/materia-medica", label: "Materia Medica", icon: BookOpen },
+      { href: "/student/organon", label: "Organon & Philosophy", icon: Scroll },
       { href: "/student/flashcards", label: "Flashcards", icon: RotateCcw },
       { href: "/student/quiz", label: "Quiz Engine", icon: HelpCircle },
-      { href: "/student/ai-tutor", label: "Organon Tutor", icon: GraduationCap, isAI: true },
       { href: "/student/notes", label: "Study Notes", icon: FileText },
+    ],
+  },
+  {
+    label: "AI Tutors",
+    items: [
+      { href: "/student/ai-tutor", label: "Organon Tutor", icon: GraduationCap, isAI: true },
+      { href: "/student/materia-medica-tutor", label: "Materia Medica Tutor", icon: BookOpen, isAI: true },
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
+      { href: "/student/repertory", label: "Repertory", icon: Layers },
+      { href: "/student/take-case", label: "Take Case", icon: ClipboardList },
+      { href: "/student/research", label: "Research Library", icon: Library },
     ],
   },
   {
@@ -39,11 +59,9 @@ const navGroups = [
     ],
   },
   {
-    label: "Tools",
+    label: "Account",
     items: [
-      { href: "/student/materia-medica-tutor", label: "MM Tutor", icon: BookOpen, isAI: true },
-      { href: "/student/repertory", label: "Repertory", icon: Layers, isAI: true },
-      { href: "/student/research", label: "Research Library", icon: Library },
+      { href: "/student/settings", label: "Settings", icon: Settings },
     ],
   },
 ];
@@ -51,26 +69,45 @@ const navGroups = [
 export function StudentSidebar() {
   const pathname = usePathname();
   const { logout } = useAuthStore();
+  const { mobileNavOpen, closeMobileNav } = useUIStore();
   const router = useRouter();
 
   return (
-    <aside
-      className="w-60 flex-shrink-0 h-full flex flex-col"
-      style={{
-        background: "var(--glass-base)",
-        backdropFilter: "blur(24px) saturate(160%)",
-        WebkitBackdropFilter: "blur(24px) saturate(160%)",
-        borderRight: "1px solid var(--glass-border)",
-      }}
-    >
-      {/* Logo */}
-      <div className="h-14 flex items-center px-5 gap-2.5" style={{ borderBottom: "1px solid var(--glass-border)" }}>
-        <div className="w-8 h-8 rounded-xl gradient-mineral flex items-center justify-center text-white font-bold text-sm">N</div>
-        <div>
-          <div className="font-bold text-xs" style={{ color: "var(--text-obsidian)" }}>NeoHomeo AI</div>
-          <div className="font-mono-neo text-[9px] uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>Student Platform</div>
+    <>
+      {/* Mobile backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(2px)" }}
+          onClick={closeMobileNav}
+        />
+      )}
+
+      <aside
+        className={cn(
+          "w-60 flex-shrink-0 h-full flex flex-col",
+          // Mobile: fixed slide-in drawer; Desktop: static column
+          "fixed inset-y-0 left-0 z-50 transition-transform duration-300 md:static md:z-auto md:translate-x-0",
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{
+          background: "var(--glass-base)",
+          backdropFilter: "blur(24px) saturate(160%)",
+          WebkitBackdropFilter: "blur(24px) saturate(160%)",
+          borderRight: "1px solid var(--glass-border)",
+        }}
+      >
+        {/* Logo */}
+        <div className="h-14 flex items-center px-5 gap-2.5" style={{ borderBottom: "1px solid var(--glass-border)" }}>
+          <div className="w-8 h-8 rounded-xl gradient-mineral flex items-center justify-center text-white font-bold text-sm">N</div>
+          <div className="flex-1">
+            <div className="font-bold text-xs" style={{ color: "var(--text-obsidian)" }}>NeoHomeo AI</div>
+            <div className="font-mono-neo text-[9px] uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>Student Platform</div>
+          </div>
+          <button onClick={closeMobileNav} className="md:hidden p-1.5 rounded-lg hover:bg-white/40" aria-label="Close menu">
+            <X className="h-4 w-4" style={{ color: "var(--text-dim)" }} />
+          </button>
         </div>
-      </div>
 
       <nav className="flex-1 p-3 space-y-5 overflow-y-auto scrollbar-thin">
         {navGroups.map((group) => (
@@ -85,6 +122,7 @@ export function StudentSidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={closeMobileNav}
                     className={cn(
                       "nav-item text-sm transition-all",
                       isActive
@@ -122,13 +160,14 @@ export function StudentSidebar() {
 
       <div className="p-3 space-y-0.5" style={{ borderTop: "1px solid var(--glass-border)" }}>
         <Link href="/student/settings"
+          onClick={closeMobileNav}
           className="nav-item text-sm hover:bg-white/40"
           style={{ color: "var(--text-dim)" }}>
           <Settings className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
           Settings
         </Link>
         <button
-          onClick={() => { logout(); router.push("/login"); }}
+          onClick={() => { closeMobileNav(); logout(); router.push("/login"); }}
           className="nav-item w-full text-sm hover:bg-red-50/60"
           style={{ color: "var(--text-dim)" }}
         >
@@ -137,5 +176,6 @@ export function StudentSidebar() {
         </button>
       </div>
     </aside>
+    </>
   );
 }
